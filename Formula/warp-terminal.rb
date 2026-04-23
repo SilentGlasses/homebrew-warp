@@ -5,6 +5,11 @@ class WarpTerminal < Formula
 
   # This formula is strictly for Linux.
   # macOS users should use 'brew install --cask warp'
+  livecheck do
+    url :stable
+    regex(/v(\d+(?:\.\d+)+(?:\.stable_\d+)?)/i)
+  end
+
   depends_on :linux
 
   on_linux do
@@ -19,10 +24,6 @@ class WarpTerminal < Formula
   end
 
   # Helps 'brew livecheck' identify the latest version string
-  livecheck do
-    url "https://www.warp.dev/linux"
-    regex(/v(\d+(?:\.\d+)+(?:\.stable_\d+)?)/i)
-  end
 
   def install
     # Determine the correct binary based on architecture
