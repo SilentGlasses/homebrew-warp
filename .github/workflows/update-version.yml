@@ -1,8 +1,8 @@
 name: Autoupdate Warp
 on:
   schedule:
-    - cron: '0 */6 * * *' # Checks every 6 hours
-  workflow_dispatch:      # Allows you to click "Run workflow" manually
+    - cron: '0 */6 * * *' # Automated check every 6 hours
+  workflow_dispatch:      # Allows manual trigger via GitHub UI
   push:
     branches: [main]
     paths-ignore:
@@ -24,42 +24,56 @@ jobs:
       - name: Fetch Latest Warp Release Metadata
         id: warp_data
         run: |
-          # Get the final redirected URL for the stable x86_64 AppImage
-          URL=$(curl -Ls -o /dev/null -w %{url_effective} https://releases.warp.dev/stable/latest/Warp-x86_64.AppImage)
+          # 1. Deterministic JSON parsing for version
+          VERSION=$(curl -fsSL https://releases.warp.dev/channel_versions.json | jq -r '.stable.version_info.version')
+          
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Error: Could not parse version from JSON endpoint"
+            exit 1
+          fi
 
-          # Extract version (e.g., v0.2024.03.19.08.02.stable_01)
-          VERSION=$(echo $URL | grep -oP 'v\d+(\.\d+)+\.stable_\d+')
+          # 2. Build the target URL
+          URL="https://releases.warp.dev/stable/${VERSION}/Warp-x86_64.AppImage"
+          
+          # 3. Calculate SHA256 (streaming to avoid large disk usage)
+          echo "Processing version: $VERSION"
+          SHA256=$(curl -fsSL "$URL" | sha256sum | awk '{print $1}')
+          
+          if [ -z "$SHA256" ]; then
+            echo "Error: SHA256 calculation failed"
+            exit 1
+          fi
 
-          # Calculate SHA256 of the remote file without saving it to disk (streaming)
-          SHA256=$(curl -Ls $URL | sha256sum | awk '{print $1}')
-
+          # 4. Pass variables to subsequent steps
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
           echo "url=$URL" >> $GITHUB_OUTPUT
 
-      - name: Update Formula File
+      - name: Update Formula and README
         run: |
-          # Update URL and SHA256 specifically for the x86_64 block
-          # Note: This logic assumes x86_64 is the primary target;
-          # ARM64 can be added similarly by repeating the fetch for the aarch64 URL.
-          sed -i "s|url \".*Warp-x86_64.AppImage\"|url \"${{ steps.warp_data.outputs.url }}\"|g" Formula/warp-terminal.rb
+          # Update URL line in Formula
+          sed -i "s|url \"https://releases.warp.dev/stable/.*\"|url \"${{ steps.warp_data.outputs.url }}\"|g" Formula/warp-terminal.rb
+          
+          # Update SHA256 line targeting the anchor comment
           sed -i "s|sha256 \".*\" # x86_64_placeholder|sha256 \"${{ steps.warp_data.outputs.sha256 }}\" # x86_64_placeholder|g" Formula/warp-terminal.rb
+          
+          # Inject Secrets/Context into README placeholders
+          sed -i "s/GH_USER_PLACEHOLDER/${{ github.repository_owner }}/g" README.md
+          sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
 
-      - name: Commit Changes
+      - name: Commit and Push Changes
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore(version): bump warp-terminal to ${{ steps.warp_data.outputs.version }}"
-          file_pattern: 'Formula/warp-terminal.rb'
-          
-      # Create badge
-      # https://github.com/marketplace/actions/bring-your-own-badge
-      - name: Deploy Badge Data
+          commit_message: "chore(automation): bump warp to ${{ steps.warp_data.outputs.version }}"
+          file_pattern: 'Formula/*.rb README.md'
+
+      - name: Update Version Badge (BYOB)
         uses: RubbaBoy/BYOB@v1.3.0
         with:
-          label: 'Warp Linux'
-          message: ${{ steps.warp_data.outputs.version }}
-          color: '78c4e3'
-          is-error: false
+          file: warp-version.json
           gist-id: ${{ secrets.GIST_ID }}
           gist-token: ${{ secrets.GIST_TOKEN }}
+          message: ${{ steps.warp_data.outputs.version }}
+          label: "Warp Linux"
+          color: "01e6ca"
           repository: ${{ github.repository }}
