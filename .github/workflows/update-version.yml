@@ -1,0 +1,63 @@
+name: Autoupdate Warp
+on:
+  schedule:
+    - cron: '0 */6 * * *' # Checks every 6 hours
+  workflow_dispatch:      # Allows you to click "Run workflow" manually
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch Latest Warp Release Metadata
+        id: warp_data
+        run: |
+          # Get the final redirected URL for the stable x86_64 AppImage
+          URL=$(curl -Ls -o /dev/null -w %{url_effective} https://releases.warp.dev/stable/latest/Warp-x86_64.AppImage)
+
+          # Extract version (e.g., v0.2024.03.19.08.02.stable_01)
+          VERSION=$(echo $URL | grep -oP 'v\d+(\.\d+)+\.stable_\d+')
+
+          # Calculate SHA256 of the remote file without saving it to disk (streaming)
+          SHA256=$(curl -Ls $URL | sha256sum | awk '{print $1}')
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Update Formula File
+        run: |
+          # Update URL and SHA256 specifically for the x86_64 block
+          # Note: This logic assumes x86_64 is the primary target;
+          # ARM64 can be added similarly by repeating the fetch for the aarch64 URL.
+          sed -i "s|url \".*Warp-x86_64.AppImage\"|url \"${{ steps.warp_data.outputs.url }}\"|g" Formula/warp-terminal.rb
+          sed -i "s|sha256 \".*\" # x86_64_placeholder|sha256 \"${{ steps.warp_data.outputs.sha256 }}\" # x86_64_placeholder|g" Formula/warp-terminal.rb
+
+      - name: Commit Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(version): bump warp-terminal to ${{ steps.warp_data.outputs.version }}"
+          file_pattern: 'Formula/warp-terminal.rb'
+
+      - name: Deploy Badge Data
+        uses: unlock-protocol/bring-your-own-badge@v1.1.0
+        with:
+          label: 'Warp Linux'
+          message: ${{ steps.warp_data.outputs.version }}
+          color: '78c4e3'
+          is-error: false
+          gist-id: ${{ secrets.GIST_ID }}
+          gist-token: ${{ secrets.GIST_TOKEN }}
+          repository: ${{ github.repository }}

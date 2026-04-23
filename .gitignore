@@ -1,0 +1,13 @@
+# Homebrew / Linuxbrew specific
+.brew/
+*.bottle.json
+*.tar.gz
+
+# OS specific
+.DS_Store
+.vscode/
+.idea/
+
+# Temporary artifacts
+temp/
+dist/

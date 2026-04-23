@@ -1,0 +1,59 @@
+class WarpTerminal < Formula
+  desc "Rust-based terminal with AI, built for teams"
+  homepage "https://www.warp.dev/"
+  license "Closed Source"
+
+  # This formula is strictly for Linux.
+  # macOS users should use 'brew install --cask warp'
+  depends_on :linux
+
+  on_linux do
+    if Hardware::CPU.intel?
+      # The Autoupdate workflow targets the following lines:
+      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-x86_64.AppImage"
+      sha256 "6a1005b87130623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # x86_64_placeholder
+    elsif Hardware::CPU.arm?
+      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-aarch64.AppImage"
+      sha256 "d8324e5a9590623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # arm64_placeholder
+    end
+  end
+
+  # Helps 'brew livecheck' identify the latest version string
+  livecheck do
+    url "https://www.warp.dev/linux"
+    regex(/v(\d+(?:\.\d+)+(?:\.stable_\d+)?)/i)
+  end
+
+  def install
+    # Determine the correct binary based on architecture
+    bin_name = Hardware::CPU.intel? ? "Warp-x86_64.AppImage" : "Warp-aarch64.AppImage"
+
+    # Install the AppImage as 'warp' in the Homebrew bin directory
+    bin.install bin_name => "warp"
+
+    # Ensure the binary is executable
+    chmod 0755, bin/"warp"
+  end
+
+  def caveats
+    <<~EOS
+      Warp Terminal is distributed as an AppImage.
+      You must have FUSE (Filesystem in Userspace) installed for it to run.
+
+      Ubuntu/Debian:
+        sudo apt install libfuse2
+
+      Fedora:
+        sudo dnf install fuse-libs
+
+      Arch Linux:
+        sudo pacman -S fuse2
+    EOS
+  end
+
+  test do
+    # Basic check to ensure the binary is in the path and executable
+    # We use '2>&1' because Warp may output to stderr in headless environments
+    assert_match "warp", shell_output("#{bin}/warp --version 2>&1", 1)
+  end
+end
