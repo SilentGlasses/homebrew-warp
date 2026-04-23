@@ -17,7 +17,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -25,8 +25,8 @@ jobs:
         id: warp_data
         run: |
           # 1. Deterministic JSON parsing for version
-          VERSION=$(curl -fsSL https://releases.warp.dev/channel_versions.json | jq -r '.stable.version_info.version')
-          
+          VERSION=$(curl -fsSL https://releases.warp.dev/channel_versions.json | jq -r '.stable.version')
+
           if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
             echo "Error: Could not parse version from JSON endpoint"
             exit 1
@@ -34,11 +34,11 @@ jobs:
 
           # 2. Build the target URL
           URL="https://releases.warp.dev/stable/${VERSION}/Warp-x86_64.AppImage"
-          
+
           # 3. Calculate SHA256 (streaming to avoid large disk usage)
           echo "Processing version: $VERSION"
           SHA256=$(curl -fsSL "$URL" | sha256sum | awk '{print $1}')
-          
+
           if [ -z "$SHA256" ]; then
             echo "Error: SHA256 calculation failed"
             exit 1
@@ -53,10 +53,10 @@ jobs:
         run: |
           # Update URL line in Formula
           sed -i "s|url \"https://releases.warp.dev/stable/.*\"|url \"${{ steps.warp_data.outputs.url }}\"|g" Formula/warp-terminal.rb
-          
+
           # Update SHA256 line targeting the anchor comment
           sed -i "s|sha256 \".*\" # x86_64_placeholder|sha256 \"${{ steps.warp_data.outputs.sha256 }}\" # x86_64_placeholder|g" Formula/warp-terminal.rb
-          
+
           # Inject Secrets/Context into README placeholders
           sed -i "s/GH_USER_PLACEHOLDER/${{ github.repository_owner }}/g" README.md
           sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
