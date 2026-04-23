@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -61,11 +62,20 @@ jobs:
           sed -i "s/GH_USER_PLACEHOLDER/${{ github.repository_owner }}/g" README.md
           sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
 
-      - name: Commit and Push Changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Open Pull Request with Changes
+        uses: peter-evans/create-pull-request@v6
         with:
-          commit_message: "chore(automation): bump warp to ${{ steps.warp_data.outputs.version }}"
-          file_pattern: 'Formula/*.rb README.md'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: chore/auto-update-warp
+          commit-message: "chore(automation): bump warp to ${{ steps.warp_data.outputs.version }}"
+          title: "chore(automation): bump warp to ${{ steps.warp_data.outputs.version }}"
+          body: |
+            Automated version bump by GitHub Actions.
+            - **Version:** `${{ steps.warp_data.outputs.version }}`
+            - **URL:** `${{ steps.warp_data.outputs.url }}`
+            - **SHA256:** `${{ steps.warp_data.outputs.sha256 }}`
+          labels: automation
+          delete-branch: true
 
       - name: Update Version Badge (BYOB)
         uses: RubbaBoy/BYOB@v1.3.0
