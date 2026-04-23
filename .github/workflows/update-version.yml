@@ -50,9 +50,11 @@ jobs:
         with:
           commit_message: "chore(version): bump warp-terminal to ${{ steps.warp_data.outputs.version }}"
           file_pattern: 'Formula/warp-terminal.rb'
-
+          
+      # Create badge
+      # https://github.com/marketplace/actions/bring-your-own-badge
       - name: Deploy Badge Data
-        uses: unlock-protocol/bring-your-own-badge@v1.1.0
+        uses: RubbaBoy/BYOB@v1.3.0
         with:
           label: 'Warp Linux'
           message: ${{ steps.warp_data.outputs.version }}
