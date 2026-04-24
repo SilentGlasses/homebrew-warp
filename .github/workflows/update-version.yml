@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
 
     steps:
       # ────────────────────────────────────────────────
@@ -78,11 +79,11 @@ jobs:
           URL_X86="${BASE_URL}/Warp-x86_64.AppImage"
           URL_ARM="${BASE_URL}/Warp-aarch64.AppImage"
 
-          echo "Downloading x86_64 AppImage…"
+          echo "Downloading x86_64 AppImage..."
           SHA256_X86=$(curl -fsSL "$URL_X86" | sha256sum | awk '{print $1}')
           [ -z "$SHA256_X86" ] && { echo "::error::SHA256 failed for x86_64"; exit 1; }
 
-          echo "Downloading aarch64 AppImage…"
+          echo "Downloading aarch64 AppImage..."
           SHA256_ARM=$(curl -fsSL "$URL_ARM" | sha256sum | awk '{print $1}')
           [ -z "$SHA256_ARM" ] && { echo "::error::SHA256 failed for aarch64"; exit 1; }
 
@@ -128,14 +129,55 @@ jobs:
           sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
 
       # ────────────────────────────────────────────────
-      # 7. Commit & push
+      # 7. Commit to a feature branch and open a PR
+      #    Direct pushes to main are blocked by branch
+      #    protection, so changes go through a PR instead.
+      #    If a PR for this version already exists it will
+      #    not be duplicated (gh pr list check is idempotent).
       # ────────────────────────────────────────────────
-      - name: Commit and Push Changes
+      - name: Commit and Push to Feature Branch
         if: steps.check.outputs.needs_update == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore(automation): bump warp to ${{ steps.warp_version.outputs.version }}"
-          file_pattern: "Formula/*.rb README.md"
+        id: git_push
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          BRANCH="chore/bump-warp-${VERSION}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$BRANCH"
+          git add Formula/warp-terminal.rb README.md
+          git commit -m "chore(automation): bump warp to ${VERSION}"
+          git push --force-with-lease origin "$BRANCH"
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          BRANCH="${{ steps.git_push.outputs.branch }}"
+
+          # Check if a PR already exists for this branch; skip if so.
+          EXISTING=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+
+          if [ -n "$EXISTING" ]; then
+            echo "PR #${EXISTING} already exists for branch ${BRANCH} — skipping."
+          else
+            gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(automation): bump warp to ${VERSION}" \
+              --body "Automated version bump to \`${VERSION}\`.
+
+          **Changes:**
+          - Updated x86_64 URL and SHA256
+          - Updated aarch64 URL and SHA256
+
+          > Opened automatically by the Autoupdate Warp workflow."
+          fi
 
       # ────────────────────────────────────────────────
       # 8. Update the version badge via BYOB gist
