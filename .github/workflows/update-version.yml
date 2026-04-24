@@ -93,10 +93,8 @@ jobs:
       - name: Update Version Badge (BYOB)
         uses: RubbaBoy/BYOB@v1.3.0
         with:
-          file: warp-version.json
-          gist-id: ${{ secrets.GIST_ID }}
-          gist-token: ${{ secrets.GIST_TOKEN }}
-          message: ${{ steps.warp_data.outputs.version }}
-          label: "Warp Linux"
-          color: "01e6ca"
-          repository: ${{ github.repository }}
+          NAME: warp-linux
+          LABEL: "Warp Linux"
+          STATUS: ${{ steps.warp_data.outputs.version }}
+          COLOR: 01e6ca
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

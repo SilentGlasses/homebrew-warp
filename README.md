@@ -1,5 +1,5 @@
 [![Autoupdate Warp](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml/badge.svg)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml)
-![Warp Version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/SilentGlasses/403337b2dfb42504cfdcaf2b9c58fbfd/raw/warp-terminal.json)
+![Warp Version](https://byob.yarr.is/SilentGlasses/homebrew-warp/warp-linux)
 
 # brew-warp
 
