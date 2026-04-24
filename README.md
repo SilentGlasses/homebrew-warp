@@ -1,3 +1,4 @@
+[![Autoupdate Warp](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml/badge.svg)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml)
 ![Warp Version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/SilentGlasses/403337b2dfb42504cfdcaf2b9c58fbfd/raw/warp-terminal.json)
 
 # brew-warp
@@ -66,7 +67,7 @@ This repository uses **GitHub Actions** to maintain parity with Warp's release c
 2. **Validator:** It downloads the new binary, calculates the SHA256 hash, and updates the Formula.
 3. **Badge:** The live version badge at the top of this README is updated via a Gist endpoint to reflect the current state of the tap.
 
-## ⚖️ License
+## License
 
 The Homebrew Formula code in this repository is available under the [MIT License](LICENSE).
 
