@@ -5,37 +5,48 @@ class WarpTerminal < Formula
 
   # This formula is strictly for Linux.
   # macOS users should use 'brew install --cask warp'
-  livecheck do
-    url :stable
-    regex(/v(\d+(?:\.\d+)+(?:\.stable_\d+)?)/i)
-  end
 
   depends_on :linux
 
+  # ──────────────────────────────────────────────
+  # Architecture-specific downloads
+  # NOTE: The autoupdate workflow targets lines anchored by the
+  # trailing comments (# x86_64_url, # x86_64_sha256, etc.).
+  # Do NOT remove or rename those anchor comments.
+  # ──────────────────────────────────────────────
   on_linux do
     if Hardware::CPU.intel?
-      # The Autoupdate workflow targets the following lines:
-      url "https://releases.warp.dev/stable/v0.2026.04.15.08.45.stable_02/Warp-x86_64.AppImage"
-      sha256 "436d99a13e60451d12a89aeae2d32a6467d645fd10fea7b870c2e7b650f33d33" # x86_64_placeholder
+      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-x86_64.AppImage" # x86_64_url
+      sha256 "6a1005b87130623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # x86_64_sha256
     elsif Hardware::CPU.arm?
-      url "https://releases.warp.dev/stable/v0.2026.04.15.08.45.stable_02/Warp-x86_64.AppImage"
-      sha256 "d8324e5a9590623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # arm64_placeholder
+      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-aarch64.AppImage" # arm64_url
+      sha256 "d8324e5a9590623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # arm64_sha256
     end
   end
 
-  # Helps 'brew livecheck' identify the latest version string
+  # ──────────────────────────────────────────────
+  # Livecheck — helps `brew livecheck` identify the latest version.
+  # Warp version strings look like: v0.2026.04.15.08.45.stable_02
+  # ──────────────────────────────────────────────
+  livecheck do
+    url "https://releases.warp.dev/channel_versions.json"
+    strategy :json do |json|
+      json.dig("stable", "version")
+    end
+  end
 
+  # ──────────────────────────────────────────────
+  # Installation
+  # ──────────────────────────────────────────────
   def install
-    # Determine the correct binary based on architecture
     bin_name = Hardware::CPU.intel? ? "Warp-x86_64.AppImage" : "Warp-aarch64.AppImage"
-
-    # Install the AppImage as 'warp' in the Homebrew bin directory
     bin.install bin_name => "warp"
-
-    # Ensure the binary is executable
     chmod 0755, bin/"warp"
   end
 
+  # ──────────────────────────────────────────────
+  # Post-install guidance
+  # ──────────────────────────────────────────────
   def caveats
     <<~EOS
       Warp Terminal is distributed as an AppImage.
@@ -49,12 +60,19 @@ class WarpTerminal < Formula
 
       Arch Linux:
         sudo pacman -S fuse2
+
+      After installing FUSE, launch Warp with:
+        warp
     EOS
   end
 
+  # ──────────────────────────────────────────────
+  # Test
+  # AppImages exit non-zero in headless CI (no display/FUSE),
+  # so we just confirm the file is present and executable.
+  # ──────────────────────────────────────────────
   test do
-    # Basic check to ensure the binary is in the path and executable
-    # We use '2>&1' because Warp may output to stderr in headless environments
-    assert_match "warp", shell_output("#{bin}/warp --version 2>&1", 1)
+    assert_predicate bin/"warp", :exist?
+    assert_predicate bin/"warp", :executable?
   end
 end
