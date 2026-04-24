@@ -1,100 +1,153 @@
 name: Autoupdate Warp
+
 on:
   schedule:
-    - cron: '0 */6 * * *' # Automated check every 6 hours
-  workflow_dispatch:      # Allows manual trigger via GitHub UI
+    - cron: "0 */6 * * *" # Check every 6 hours
+  workflow_dispatch: # Allow manual trigger from GitHub UI
   push:
     branches: [main]
     paths-ignore:
-      - 'README.md'
-      - '.gitignore'
-      - 'LICENSE'
+      - "README.md"
+      - ".gitignore"
+      - "LICENSE"
 
 jobs:
   update-formula:
     runs-on: ubuntu-latest
-    concurrency:
-      group: update-warp-formula
-      cancel-in-progress: true
     permissions:
       contents: write
-      pull-requests: write
+
     steps:
+      # ────────────────────────────────────────────────
+      # 1. Checkout
+      # ────────────────────────────────────────────────
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
-      - name: Fetch Latest Warp Release Metadata
-        id: warp_data
+      # ────────────────────────────────────────────────
+      # 2. Resolve latest stable version from Warp's API
+      #    JSON shape: { "stable": { "version": "v0.YYYY..." } }
+      # ────────────────────────────────────────────────
+      - name: Fetch Latest Warp Version
+        id: warp_version
         run: |
-          set -euo pipefail
-
-          # 1. Deterministic JSON parsing for version
-          VERSION=$(curl -fsSL https://releases.warp.dev/channel_versions.json | jq -r '.stable.version')
+          API_URL="https://releases.warp.dev/channel_versions.json"
+          VERSION=$(curl -fsSL "$API_URL" | jq -r '.stable.version')
 
           if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "Error: Could not parse version from JSON endpoint"
+            echo "::error::Could not parse stable version from $API_URL"
             exit 1
           fi
 
-          # 2. Build the target URL
-          URL="https://releases.warp.dev/stable/${VERSION}/Warp-x86_64.AppImage"
+          echo "Latest stable version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          # 3. Validate URL resolves before streaming
-          HTTP_STATUS=$(curl -o /dev/null -sIw "%{http_code}" "$URL")
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Error: AppImage URL returned HTTP $HTTP_STATUS"
-            exit 1
-          fi
-
-          # 4. Calculate SHA256 (streaming to avoid large disk usage)
-          echo "Processing version: $VERSION"
-          SHA256=$(curl -fsSL "$URL" | sha256sum | awk '{print $1}')
-
-          if [ -z "$SHA256" ]; then
-            echo "Error: SHA256 calculation failed"
-            exit 1
-          fi
-
-          # 5. Pass variables to subsequent steps
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
-          echo "url=$URL" >> $GITHUB_OUTPUT
-
-      - name: Update Formula and README
+      # ────────────────────────────────────────────────
+      # 3. Detect whether the formula already uses this version
+      #    (avoids re-downloading ~200 MB of AppImages on no-op runs)
+      # ────────────────────────────────────────────────
+      - name: Check if Update is Needed
+        id: check
         run: |
-          # Update URL line in Formula
-          sed -i "s|url \"https://releases.warp.dev/stable/.*\"|url \"${{ steps.warp_data.outputs.url }}\"|g" Formula/warp-terminal.rb
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          CURRENT=$(grep -oP '(?<=stable/)v[^/]+(?=/Warp-)' Formula/warp-terminal.rb | head -1 || true)
 
-          # Update SHA256 line targeting the anchor comment
-          sed -i "s|sha256 \".*\" # x86_64_placeholder|sha256 \"${{ steps.warp_data.outputs.sha256 }}\" # x86_64_placeholder|g" Formula/warp-terminal.rb
+          echo "Current formula version : ${CURRENT:-unknown}"
+          echo "Latest upstream version : $VERSION"
 
-          # Inject Secrets/Context into README placeholders
+          if [ "$CURRENT" = "$VERSION" ]; then
+            echo "Formula is already up to date."
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Update required."
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ────────────────────────────────────────────────
+      # 4. Download both AppImages and compute SHA256
+      #    (only when an update is actually needed)
+      # ────────────────────────────────────────────────
+      - name: Fetch AppImages and Compute SHA256
+        id: warp_data
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          BASE_URL="https://releases.warp.dev/stable/${VERSION}"
+          URL_X86="${BASE_URL}/Warp-x86_64.AppImage"
+          URL_ARM="${BASE_URL}/Warp-aarch64.AppImage"
+
+          echo "Downloading x86_64 AppImage…"
+          SHA256_X86=$(curl -fsSL "$URL_X86" | sha256sum | awk '{print $1}')
+          [ -z "$SHA256_X86" ] && { echo "::error::SHA256 failed for x86_64"; exit 1; }
+
+          echo "Downloading aarch64 AppImage…"
+          SHA256_ARM=$(curl -fsSL "$URL_ARM" | sha256sum | awk '{print $1}')
+          [ -z "$SHA256_ARM" ] && { echo "::error::SHA256 failed for aarch64"; exit 1; }
+
+          echo "x86_64  sha256: $SHA256_X86"
+          echo "aarch64 sha256: $SHA256_ARM"
+
+          {
+            echo "sha256_x86=$SHA256_X86"
+            echo "sha256_arm=$SHA256_ARM"
+            echo "url_x86=$URL_X86"
+            echo "url_arm=$URL_ARM"
+          } >> "$GITHUB_OUTPUT"
+
+      # ────────────────────────────────────────────────
+      # 5. Patch the formula (anchor-comment targeting)
+      #    Each sed targets a unique trailing comment so
+      #    the two url lines and two sha256 lines are
+      #    updated independently and correctly.
+      # ────────────────────────────────────────────────
+      - name: Update Formula
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          X86_URL="${{ steps.warp_data.outputs.url_x86 }}"
+          ARM_URL="${{ steps.warp_data.outputs.url_arm }}"
+          X86_SHA="${{ steps.warp_data.outputs.sha256_x86 }}"
+          ARM_SHA="${{ steps.warp_data.outputs.sha256_arm }}"
+
+          sed -i "s|url \".*\" # x86_64_url|url \"${X86_URL}\" # x86_64_url|" Formula/warp-terminal.rb
+          sed -i "s|sha256 \".*\" # x86_64_sha256|sha256 \"${X86_SHA}\" # x86_64_sha256|" Formula/warp-terminal.rb
+          sed -i "s|url \".*\" # arm64_url|url \"${ARM_URL}\" # arm64_url|" Formula/warp-terminal.rb
+          sed -i "s|sha256 \".*\" # arm64_sha256|sha256 \"${ARM_SHA}\" # arm64_sha256|" Formula/warp-terminal.rb
+
+          echo "Formula patched. Diff:"
+          git diff Formula/warp-terminal.rb
+
+      # ────────────────────────────────────────────────
+      # 6. Update README placeholders (idempotent)
+      # ────────────────────────────────────────────────
+      - name: Update README
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
           sed -i "s/GH_USER_PLACEHOLDER/${{ github.repository_owner }}/g" README.md
           sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
 
-      - name: Open Pull Request with Changes
-        uses: peter-evans/create-pull-request@v6
+      # ────────────────────────────────────────────────
+      # 7. Commit & push
+      # ────────────────────────────────────────────────
+      - name: Commit and Push Changes
+        if: steps.check.outputs.needs_update == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          branch: chore/auto-update-warp
-          commit-message: "chore(automation): bump warp to ${{ steps.warp_data.outputs.version }}"
-          title: "chore(automation): bump warp to ${{ steps.warp_data.outputs.version }}"
-          body: |
-            Automated version bump by GitHub Actions.
-            - **Version:** `${{ steps.warp_data.outputs.version }}`
-            - **URL:** `${{ steps.warp_data.outputs.url }}`
-            - **SHA256:** `${{ steps.warp_data.outputs.sha256 }}`
-          labels: automation
-          delete-branch: true
+          commit_message: "chore(automation): bump warp to ${{ steps.warp_version.outputs.version }}"
+          file_pattern: "Formula/*.rb README.md"
 
-      - name: Update Version Badge (BYOB)
+      # ────────────────────────────────────────────────
+      # 8. Update the version badge via BYOB gist
+      # ────────────────────────────────────────────────
+      - name: Update Version Badge
+        if: steps.check.outputs.needs_update == 'true'
         uses: RubbaBoy/BYOB@v1.3.0
         with:
-          NAME: warp-linux
-          LABEL: "Warp Linux"
-          STATUS: ${{ steps.warp_data.outputs.version }}
-          COLOR: 446ca3
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          file: warp-version.json
+          gist-id: ${{ secrets.GIST_ID }}
+          gist-token: ${{ secrets.GIST_TOKEN }}
+          message: ${{ steps.warp_version.outputs.version }}
+          label: "Warp Linux"
+          color: "01e6ca"
+          repository: ${{ github.repository }}
