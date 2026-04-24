@@ -15,10 +15,10 @@ class WarpTerminal < Formula
   on_linux do
     if Hardware::CPU.intel?
       # The Autoupdate workflow targets the following lines:
-      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-x86_64.AppImage"
-      sha256 "6a1005b87130623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # x86_64_placeholder
+      url "https://releases.warp.dev/stable/v0.2026.04.15.08.45.stable_02/Warp-x86_64.AppImage"
+      sha256 "436d99a13e60451d12a89aeae2d32a6467d645fd10fea7b870c2e7b650f33d33" # x86_64_placeholder
     elsif Hardware::CPU.arm?
-      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-aarch64.AppImage"
+      url "https://releases.warp.dev/stable/v0.2026.04.15.08.45.stable_02/Warp-x86_64.AppImage"
       sha256 "d8324e5a9590623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # arm64_placeholder
     end
   end
