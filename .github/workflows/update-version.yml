@@ -180,16 +180,17 @@ jobs:
           fi
 
       # ────────────────────────────────────────────────
-      # 8. Update the version badge via BYOB gist
+      # 8. Update the version badge via BYOB
+      #    v1.3.0 stores badge JSON in a repo branch,
+      #    not a Gist. Inputs: name, label, status,
+      #    color, github_token, path, branch, repository.
       # ────────────────────────────────────────────────
       - name: Update Version Badge
         if: steps.check.outputs.needs_update == 'true'
         uses: RubbaBoy/BYOB@v1.3.0
         with:
-          file: warp-version.json
-          gist-id: ${{ secrets.GIST_ID }}
-          gist-token: ${{ secrets.GIST_TOKEN }}
-          message: ${{ steps.warp_version.outputs.version }}
+          name: warp-version
           label: "Warp Linux"
+          status: ${{ steps.warp_version.outputs.version }}
           color: "01e6ca"
-          repository: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
