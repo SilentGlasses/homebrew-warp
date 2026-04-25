@@ -17,7 +17,7 @@ class WarpTerminal < Formula
   # This formula is Linux-only. disable! at the top level (outside any
   # on_* block) is evaluated by brew readall for every simulated OS target,
   # which prevents the "formula requires at least a URL" error on macOS.
-  disable! date: "2024-01-01",
+  disable! date:    "2024-01-01",
            because: "macOS users should install via: brew install --cask warp"
 
   depends_on :linux
@@ -45,11 +45,7 @@ class WarpTerminal < Formula
     # Extract AppImage contents without FUSE so we can install the
     # bundled .desktop file and icons into the standard XDG locations.
     # This makes Warp appear in application menus after install.
-    system bin/"warp", "--appimage-extract",
-           "warp.desktop",
-           "usr/share/icons",
-           "*.png",
-           "*.svg"
+    system bin/"warp", "--appimage-extract"
 
     extracted = Pathname("squashfs-root")
 

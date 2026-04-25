@@ -21,7 +21,7 @@ jobs:
     steps:
       # ── 1. Checkout ───────────────────────────────────────────────
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -107,12 +107,7 @@ jobs:
           echo "Formula patched. Diff:"
           git diff Formula/warp-terminal.rb
 
-      # ── 6. Update README placeholders (idempotent) ────────────────
-      - name: Update README
-        if: steps.check.outputs.needs_update == 'true'
-        run: |
-          sed -i "s/GH_USER_PLACEHOLDER/${{ github.repository_owner }}/g" README.md
-          sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
+      # ── 6. (placeholder step removed — README no longer contains placeholders) ──
 
       # ── 7. Commit to a feature branch and open a PR ───────────────
       # Direct pushes to main are blocked by branch protection rules.
@@ -166,7 +161,7 @@ jobs:
         if: steps.check.outputs.needs_update == 'true'
         uses: RubbaBoy/BYOB@v1.3.0
         with:
-          name: warp-version
+          name: warp-linux
           label: "Warp Linux"
           status: ${{ steps.warp_version.outputs.version }}
           color: "01e6ca"

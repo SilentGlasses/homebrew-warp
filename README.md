@@ -53,10 +53,16 @@ sudo pacman -S fuse2
 
 ## Testing the Installation
 
-To verify that Warp was installed correctly through Homebrew, you can run:
+To verify that Warp was installed correctly through Homebrew, run:
 
 ```bash
-warp --version
+brew list warp-terminal
+```
+
+Then launch Warp from your application menu or run:
+
+```bash
+warp
 ```
 
 ## How it Works
@@ -65,7 +71,7 @@ This repository uses **GitHub Actions** to maintain parity with Warp's release c
 
 1. **Scraper:** A workflow checks `releases.warp.dev` for new versions.
 2. **Validator:** It downloads the new binary, calculates the SHA256 hash, and updates the Formula.
-3. **Badge:** The live version badge at the top of this README is updated via a Gist endpoint to reflect the current state of the tap.
+3. **Badge:** The live version badge at the top of this README is updated via the repository's `shields` branch (powered by BYOB) to reflect the current state of the tap.
 
 ## License
 
