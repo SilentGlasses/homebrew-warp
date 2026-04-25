@@ -1,10 +1,30 @@
 class WarpTerminal < Formula
   desc "Rust-based terminal with AI, built for teams"
   homepage "https://www.warp.dev/"
-  license "Closed Source"
+  # Warp is proprietary — no SPDX identifier exists for it.
+  license :cannot_represent
 
-  # This formula is strictly for Linux.
-  # macOS users should use 'brew install --cask warp'
+  # ──────────────────────────────────────────────
+  # Livecheck must appear before depends_on per
+  # Homebrew component ordering rules (FormulaAudit/ComponentsOrder).
+  # Warp version strings look like: v0.2026.04.15.08.45.stable_02
+  # ──────────────────────────────────────────────
+  livecheck do
+    url "https://releases.warp.dev/channel_versions.json"
+    strategy :json do |json|
+      json.dig("stable", "version")
+    end
+  end
+
+  # ──────────────────────────────────────────────
+  # This formula is Linux-only.
+  # macOS users should use 'brew install --cask warp'.
+  # Declaring on_macos/disable! prevents "formula requires at least a URL"
+  # errors when brew readall simulates macOS targets.
+  # ──────────────────────────────────────────────
+  on_macos do
+    disable! date: "2024-01-01", because: "Warp is only available for Linux via this formula; macOS users should use the Warp cask instead"
+  end
 
   depends_on :linux
 
@@ -21,17 +41,6 @@ class WarpTerminal < Formula
     elsif Hardware::CPU.arm?
       url "https://releases.warp.dev/stable/v0.2026.04.22.08.46.stable_02/Warp-aarch64.AppImage" # arm64_url
       sha256 "44b7a70f3edd8dcf6fc163a1d03503c521488503023ae37f0a72095408b13a6b" # arm64_sha256
-    end
-  end
-
-  # ──────────────────────────────────────────────
-  # Livecheck — helps `brew livecheck` identify the latest version.
-  # Warp version strings look like: v0.2026.04.15.08.45.stable_02
-  # ──────────────────────────────────────────────
-  livecheck do
-    url "https://releases.warp.dev/channel_versions.json"
-    strategy :json do |json|
-      json.dig("stable", "version")
     end
   end
 
@@ -59,20 +68,18 @@ class WarpTerminal < Formula
     extracted = Pathname("squashfs-root")
 
     # ── .desktop file ────────────────────────────
-    # Find whichever .desktop file the AppImage bundled
+    # Find whichever .desktop file the AppImage bundled.
     desktop_src = extracted.glob("**/*.desktop").first
     if desktop_src
       desktop_contents = desktop_src.read
 
       # Rewrite Exec= to use the absolute Homebrew bin path so the
       # launcher works regardless of whether brew's bin is in PATH.
-      desktop_contents.gsub!(/^Exec=.*$/,   "Exec=#{bin}/warp %U")
+      desktop_contents.gsub!(/^Exec=.*$/, "Exec=#{bin}/warp %U")
       desktop_contents.gsub!(/^TryExec=.*$/, "TryExec=#{bin}/warp")
 
-      # Ensure the app shows up in terminal-emulator searches
-      unless desktop_contents.match?(/^Categories=/)
-        desktop_contents += "Categories=System;TerminalEmulator;\n"
-      end
+      # Ensure the app shows up in terminal-emulator searches.
+      desktop_contents += "Categories=System;TerminalEmulator;\n" unless desktop_contents.match?(/^Categories=/)
 
       (share/"applications").mkpath
       (share/"applications/warp.desktop").write(desktop_contents)
@@ -85,8 +92,7 @@ class WarpTerminal < Formula
 
     # Standard XDG hicolor tree: usr/share/icons/hicolor/<size>/apps/<name>
     extracted.glob("usr/share/icons/**/*.{png,svg}").each do |icon|
-      # Reconstruct the relative path from "icons/" onward so we
-      # preserve the hicolor/<size>/apps/ hierarchy under share/icons/
+      # Preserve the hicolor/<size>/apps/ hierarchy under share/icons/
       rel = icon.relative_path_from(extracted/"usr/share")
       dest = share/rel
       dest.dirname.mkpath
@@ -136,9 +142,9 @@ class WarpTerminal < Formula
   # so we confirm the binary and desktop file are both present.
   # ──────────────────────────────────────────────
   test do
-    assert_predicate bin/"warp", :exist?
+    assert_path_exists bin/"warp"
     assert_predicate bin/"warp", :executable?
-    assert_predicate share/"applications/warp.desktop", :exist?
+    assert_path_exists share/"applications/warp.desktop"
     assert_match "Exec=", (share/"applications/warp.desktop").read
   end
 end
