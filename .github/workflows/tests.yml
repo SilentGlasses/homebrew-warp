@@ -9,13 +9,11 @@ on:
     branches: [main]
     paths:
       - "Formula/**"
+  workflow_dispatch:
 
 jobs:
   test-bot:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Set up Homebrew
         id: set-up-homebrew
@@ -29,6 +27,12 @@ jobs:
 
       - name: Run brew test-bot --only-tap-syntax
         run: brew test-bot --only-tap-syntax
+
+      - name: Audit formula (x86_64 / intel)
+        run: brew audit --os=linux --arch=intel silentglasses/warp/warp-terminal
+
+      - name: Audit formula (aarch64 / arm)
+        run: brew audit --os=linux --arch=arm silentglasses/warp/warp-terminal
 
       - name: Run brew test-bot --only-formulae
         if: github.event_name == 'pull_request'
