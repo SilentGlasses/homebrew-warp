@@ -1,13 +1,14 @@
 name: brew test-bot
+
 on:
   push:
     branches: [main]
     paths:
-      - 'Formula/**'
+      - "Formula/**"
   pull_request:
     branches: [main]
     paths:
-      - 'Formula/**'
+      - "Formula/**"
 
 jobs:
   test-bot:
@@ -18,7 +19,7 @@ jobs:
     steps:
       - name: Set up Homebrew
         id: set-up-homebrew
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
 
       - name: Run brew test-bot --only-cleanup-before
         run: brew test-bot --only-cleanup-before
@@ -30,4 +31,9 @@ jobs:
         run: brew test-bot --only-tap-syntax
 
       - name: Run brew test-bot --only-formulae
+        if: github.event_name == 'pull_request'
         run: brew test-bot --only-formulae ./Formula/warp-terminal.rb
+
+      - name: Run brew test-bot --only-cleanup-after
+        if: always()
+        run: brew test-bot --only-cleanup-after
