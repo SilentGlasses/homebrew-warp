@@ -51,11 +51,7 @@ class WarpTerminal < Formula
     # ── Desktop integration ────────────────────────────────────────
     # Extract the AppImage without FUSE (--appimage-extract) to pull
     # the bundled .desktop file and icons so Warp appears in app menus.
-    system bin/"warp", "--appimage-extract",
-           "warp.desktop",
-           "usr/share/icons",
-           "*.png",
-           "*.svg"
+    system bin/"warp", "--appimage-extract"
 
     extracted = Pathname("squashfs-root")
 
