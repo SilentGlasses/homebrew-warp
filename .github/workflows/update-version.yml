@@ -19,18 +19,14 @@ jobs:
       pull-requests: write
 
     steps:
-      # ────────────────────────────────────────────────
-      # 1. Checkout
-      # ────────────────────────────────────────────────
+      # ── 1. Checkout ───────────────────────────────────────────────
       - name: Checkout Repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      # ────────────────────────────────────────────────
-      # 2. Resolve latest stable version from Warp's API
-      #    JSON shape: { "stable": { "version": "v0.YYYY..." } }
-      # ────────────────────────────────────────────────
+      # ── 2. Resolve latest stable version ─────────────────────────
+      # JSON shape: { "stable": { "version": "v0.YYYY..." } }
       - name: Fetch Latest Warp Version
         id: warp_version
         run: |
@@ -45,10 +41,8 @@ jobs:
           echo "Latest stable version: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # ────────────────────────────────────────────────
-      # 3. Detect whether the formula already uses this version
-      #    (avoids re-downloading ~200 MB of AppImages on no-op runs)
-      # ────────────────────────────────────────────────
+      # ── 3. Early-exit if already up to date ──────────────────────
+      # Avoids downloading ~200 MB of AppImages on no-op runs.
       - name: Check if Update is Needed
         id: check
         run: |
@@ -66,10 +60,7 @@ jobs:
             echo "needs_update=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # ────────────────────────────────────────────────
-      # 4. Download both AppImages and compute SHA256
-      #    (only when an update is actually needed)
-      # ────────────────────────────────────────────────
+      # ── 4. Download both AppImages and compute SHA256 ─────────────
       - name: Fetch AppImages and Compute SHA256
         id: warp_data
         if: steps.check.outputs.needs_update == 'true'
@@ -97,12 +88,9 @@ jobs:
             echo "url_arm=$URL_ARM"
           } >> "$GITHUB_OUTPUT"
 
-      # ────────────────────────────────────────────────
-      # 5. Patch the formula (anchor-comment targeting)
-      #    Each sed targets a unique trailing comment so
-      #    the two url lines and two sha256 lines are
-      #    updated independently and correctly.
-      # ────────────────────────────────────────────────
+      # ── 5. Patch the formula ──────────────────────────────────────
+      # Each sed targets a unique trailing anchor comment so the two
+      # url lines and two sha256 lines update independently.
       - name: Update Formula
         if: steps.check.outputs.needs_update == 'true'
         run: |
@@ -119,22 +107,15 @@ jobs:
           echo "Formula patched. Diff:"
           git diff Formula/warp-terminal.rb
 
-      # ────────────────────────────────────────────────
-      # 6. Update README placeholders (idempotent)
-      # ────────────────────────────────────────────────
+      # ── 6. Update README placeholders (idempotent) ────────────────
       - name: Update README
         if: steps.check.outputs.needs_update == 'true'
         run: |
           sed -i "s/GH_USER_PLACEHOLDER/${{ github.repository_owner }}/g" README.md
           sed -i "s/GIST_ID_PLACEHOLDER/${{ secrets.GIST_ID }}/g" README.md
 
-      # ────────────────────────────────────────────────
-      # 7. Commit to a feature branch and open a PR
-      #    Direct pushes to main are blocked by branch
-      #    protection, so changes go through a PR instead.
-      #    If a PR for this version already exists it will
-      #    not be duplicated (gh pr list check is idempotent).
-      # ────────────────────────────────────────────────
+      # ── 7. Commit to a feature branch and open a PR ───────────────
+      # Direct pushes to main are blocked by branch protection rules.
       - name: Commit and Push to Feature Branch
         if: steps.check.outputs.needs_update == 'true'
         id: git_push
@@ -160,7 +141,6 @@ jobs:
           VERSION="${{ steps.warp_version.outputs.version }}"
           BRANCH="${{ steps.git_push.outputs.branch }}"
 
-          # Check if a PR already exists for this branch; skip if so.
           EXISTING=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
 
           if [ -n "$EXISTING" ]; then
@@ -179,12 +159,9 @@ jobs:
           > Opened automatically by the Autoupdate Warp workflow."
           fi
 
-      # ────────────────────────────────────────────────
-      # 8. Update the version badge via BYOB
-      #    v1.3.0 stores badge JSON in a repo branch,
-      #    not a Gist. Inputs: name, label, status,
-      #    color, github_token, path, branch, repository.
-      # ────────────────────────────────────────────────
+      # ── 8. Update version badge via BYOB ─────────────────────────
+      # BYOB v1.3.0 stores badge JSON in the repo (shields branch),
+      # not a Gist. Uses github_token (built-in), not gist-token.
       - name: Update Version Badge
         if: steps.check.outputs.needs_update == 'true'
         uses: RubbaBoy/BYOB@v1.3.0
