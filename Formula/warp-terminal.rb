@@ -1,37 +1,30 @@
 class WarpTerminal < Formula
   desc "Rust-based terminal with AI, built for teams"
   homepage "https://www.warp.dev/"
-  # Warp is proprietary — no SPDX identifier exists for it.
+  # Warp is proprietary — no standard SPDX identifier applies.
   license :cannot_represent
 
-  # ── Component ordering: livecheck → depends_on → on_* ─────────────
+  # ── DSL order: livecheck → disable! → depends_on → on_* ───────────
   #
-  # Livecheck parses the version from Warp's release JSON API.
-  # We use an explicit URL here (not :stable) because the livecheck
-  # endpoint differs from the formula's download URL. The rubocop
-  # directive suppresses the LivecheckUrlSymbol cop intentionally.
-  # rubocop:disable FormulaAudit/LivecheckUrlSymbol
+  # livecheck parses the version from the download URL itself.
+  # Warp URLs look like: .../stable/v0.2026.04.22.08.46.stable_02/Warp-x86_64.AppImage
+  # The regex captures everything after /stable/ and before the next slash.
   livecheck do
-    url "https://releases.warp.dev/channel_versions.json"
-    strategy :json do |json|
-      json.dig("stable", "version")
-    end
+    url :stable
+    regex(%r{/stable/(v[^/]+)/}i)
   end
-  # rubocop:enable FormulaAudit/LivecheckUrlSymbol
 
-  depends_on :linux
-
-  # This formula is Linux-only; macOS users should use the Warp cask.
-  # disable! at top level (not inside on_macos) ensures brew readall
-  # --os=all sees it for every simulated macOS target and does not
-  # raise "formula requires at least a URL".
+  # This formula is Linux-only. disable! at the top level (outside any
+  # on_* block) is evaluated by brew readall for every simulated OS target,
+  # which prevents the "formula requires at least a URL" error on macOS.
   disable! date: "2024-01-01",
            because: "macOS users should install via: brew install --cask warp"
 
+  depends_on :linux
+
   # ── Architecture-specific downloads ───────────────────────────────
-  # NOTE: The autoupdate workflow targets lines anchored by the
-  # trailing comments (# x86_64_url, # x86_64_sha256, etc.).
-  # Do NOT remove or rename those anchor comments.
+  # IMPORTANT: The autoupdate workflow targets lines by their trailing
+  # anchor comments. Do NOT remove or rename those comments.
   on_linux do
     if Hardware::CPU.intel?
       url "https://releases.warp.dev/stable/v0.2026.04.22.08.46.stable_02/Warp-x86_64.AppImage" # x86_64_url
@@ -48,9 +41,10 @@ class WarpTerminal < Formula
     bin.install bin_name => "warp"
     chmod 0755, bin/"warp"
 
-    # ── Desktop integration ────────────────────────────────────────
-    # Extract the AppImage without FUSE (--appimage-extract) to pull
-    # the bundled .desktop file and icons so Warp appears in app menus.
+    # ── Desktop integration ──────────────────────────────────────────
+    # Extract AppImage contents without FUSE so we can install the
+    # bundled .desktop file and icons into the standard XDG locations.
+    # This makes Warp appear in application menus after install.
     system bin/"warp", "--appimage-extract",
            "warp.desktop",
            "usr/share/icons",
@@ -59,8 +53,8 @@ class WarpTerminal < Formula
 
     extracted = Pathname("squashfs-root")
 
-    # .desktop file — rewrite Exec= to the absolute Homebrew bin path
-    # so the launcher works even if brew's bin is not in $PATH.
+    # .desktop — rewrite Exec= to the absolute Homebrew bin path so the
+    # launcher works even when brew's bin is not in the user's $PATH.
     desktop_src = extracted.glob("**/*.desktop").first
     if desktop_src
       desktop_contents = desktop_src.read
@@ -113,7 +107,7 @@ class WarpTerminal < Formula
     EOS
   end
 
-  # AppImages fail in headless CI (no display/FUSE), so we only verify
+  # AppImages fail in headless CI (no display/FUSE) so we only verify
   # the binary and .desktop file exist and are correctly formed.
   test do
     assert_path_exists bin/"warp"
