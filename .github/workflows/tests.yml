@@ -20,13 +20,13 @@ jobs:
         uses: Homebrew/actions/setup-homebrew@main
 
       - name: Run brew test-bot --only-cleanup-before
-        run: brew test-bot --only-cleanup-before
+        run: brew test-bot --os=linux --only-cleanup-before
 
       - name: Run brew test-bot --only-setup
-        run: brew test-bot --only-setup
+        run: brew test-bot --os=linux --only-setup
 
       - name: Run brew test-bot --only-tap-syntax
-        run: brew test-bot --only-tap-syntax
+        run: brew test-bot --os=linux --only-tap-syntax
 
       - name: Audit formula (x86_64 / intel)
         run: brew audit --os=linux --arch=intel silentglasses/warp/warp-terminal
@@ -36,8 +36,8 @@ jobs:
 
       - name: Run brew test-bot --only-formulae
         if: github.event_name == 'pull_request'
-        run: brew test-bot --only-formulae ./Formula/warp-terminal.rb
+        run: brew test-bot --os=linux --only-formulae ./Formula/warp-terminal.rb
 
       - name: Run brew test-bot --only-cleanup-after
         if: always()
-        run: brew test-bot --only-cleanup-after
+        run: brew test-bot --os=linux --only-cleanup-after
