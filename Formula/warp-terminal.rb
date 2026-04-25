@@ -16,11 +16,11 @@ class WarpTerminal < Formula
   # ──────────────────────────────────────────────
   on_linux do
     if Hardware::CPU.intel?
-      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-x86_64.AppImage" # x86_64_url
-      sha256 "6a1005b87130623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # x86_64_sha256
+      url "https://releases.warp.dev/stable/v0.2026.04.22.08.46.stable_02/Warp-x86_64.AppImage" # x86_64_url
+      sha256 "03d52e68d59f4679ef2ee4a8ca7aff26ebd36eae7974a7387761971ac2069110" # x86_64_sha256
     elsif Hardware::CPU.arm?
-      url "https://releases.warp.dev/stable/v0.2024.03.19.08.02.stable_01/Warp-aarch64.AppImage" # arm64_url
-      sha256 "d8324e5a9590623a319409893630f989c0a6b47936a71e3540306c3683a9d554" # arm64_sha256
+      url "https://releases.warp.dev/stable/v0.2026.04.22.08.46.stable_02/Warp-aarch64.AppImage" # arm64_url
+      sha256 "44b7a70f3edd8dcf6fc163a1d03503c521488503023ae37f0a72095408b13a6b" # arm64_sha256
     end
   end
 
