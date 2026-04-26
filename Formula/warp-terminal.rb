@@ -74,6 +74,30 @@ class WarpTerminal < Formula
     end
   end
 
+  def post_install
+    # Symlink .desktop file into the user XDG location so desktop environments
+    # pick it up without requiring sudo or a system-wide install.
+    xdg_apps = Pathname(ENV["HOME"])/"/.local/share/applications"
+    xdg_apps.mkpath
+    ln_sf share/"applications/warp.desktop", xdg_apps/"warp.desktop"
+
+    # Symlink icons from Homebrew share into the user hicolor icon theme.
+    xdg_icons = Pathname(ENV["HOME"])/".local/share/icons"
+    (share/"icons").find do |src|
+      next unless src.file?
+
+      rel  = src.relative_path_from(share/"icons")
+      dest = xdg_icons/rel
+      dest.dirname.mkpath
+      ln_sf src, dest
+    end
+
+    system "update-desktop-database", xdg_apps.to_s if which("update-desktop-database")
+    system "gtk-update-icon-cache", "-f", "-t",
+           (Pathname(ENV["HOME"])/".local/share/icons/hicolor").to_s \
+      if which("gtk-update-icon-cache")
+  end
+
   def caveats
     <<~EOS
       Warp Terminal is distributed as an AppImage.
@@ -90,10 +114,6 @@ class WarpTerminal < Formula
 
       After installing FUSE, launch Warp from your application menu or run:
         warp
-
-      To refresh your desktop icon cache after install:
-        update-desktop-database ~/.local/share/applications 2>/dev/null; true
-        gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null; true
     EOS
   end
 
