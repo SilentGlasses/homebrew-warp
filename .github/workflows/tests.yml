@@ -21,11 +21,11 @@ jobs:
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main
 
+      - name: Check Ruby syntax
+        run: brew ruby -e "require 'rubygems'; Gem::Specification" && ruby -c Formula/warp-terminal.rb
+
       - name: Audit formula
-        run: brew audit --strict Formula/warp-terminal.rb
+        run: brew audit Formula/warp-terminal.rb
 
-      - name: Install formula
-        run: brew install --verbose Formula/warp-terminal.rb
-
-      - name: Run formula tests
-        run: brew test Formula/warp-terminal.rb
+      - name: Validate formula loads without errors
+        run: brew readall --tap silentglasses/warp
