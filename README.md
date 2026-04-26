@@ -6,90 +6,101 @@
 
 <img width="100" height="100" alt="logo" align="left" src="https://github.com/user-attachments/assets/7784ea7d-deb1-44a0-af90-2bec574cbd7f" />
 
-A dedicated Homebrew Tap for installing **Warp Terminal** on Linux distributions.
+A streamlined Homebrew Tap designed to bring the Warp Terminal to Linux distributions with the reliability of a managed package, providing a native Formula that handles binary management, checksum verification, and architecture detection.
 
-Warp is a modern, Rust-based terminal with AI and collaborative features. While the official Homebrew repository primarily focuses on macOS Casks, this tap provides a managed Formula specifically for Linux users.
+Warp is a modern, Rust-based terminal with AI and collaborative features. The official Homebrew cask is macOS-only, this tap provides a managed Formula specifically for Linux users.
 
 ## Features
 
-- **Automated Updates:** The formula is monitored every 6 hours and automatically updated to the latest stable release.
-- **Security First:** Every update includes a fresh SHA-256 checksum verification of the official Warp binaries.
-- **Cross-Architecture:** Supports both **x86_64** and **ARM64** (Aarch64) Linux environments.
+- **Automated Updates:** Checks for new Warp releases every 6 hours and opens a PR automatically when one is found.
+- **SHA-256 Verified:** Every update computes a fresh checksum of the official Warp binaries before updating the formula.
+- **Cross-Architecture:** Supports both **x86_64** and **ARM64** (aarch64) Linux.
+- **Desktop Integration:** Automatically installs a launcher shortcut and icons into your desktop environment on install, and removes them cleanly on uninstall.
+
+## Prerequisites
+
+Warp is distributed as an **AppImage** and requires `libfuse2` to run. Install it for your distro before installing Warp:
+
+| Distro | Command |
+|---|---|
+| Ubuntu / Debian | `sudo apt install libfuse2` |
+| Fedora | `sudo dnf install fuse-libs` |
+| Arch Linux | `sudo pacman -S fuse2` |
+| openSUSE | `sudo zypper install libfuse2` |
+
+> [!NOTE]
+> AppImages require `libfuse2`, not `libfuse3`. Version 3 is not backwards compatible and will not allow the AppImage to initialize.
+> If Warp fails to launch after installing FUSE, ensure `libfuse2` specifically is installed.
 
 ## Installation
 
-First, ensure you have [Homebrew](https://brew.sh/) installed on your Linux machine.
-
-### 1. Add the Tap
+Ensure you have [Homebrew](https://brew.sh/) installed, then:
 
 ```bash
-brew tap SilentGlasses/warp
+brew install silentglasses/warp/warp-terminal
 ```
 
-### 2. Install Warp
-
-```bash
-brew install warp-terminal
-```
-
-## Prerequisites (FUSE)
-
-Warp is distributed as an **AppImage**. For the terminal to launch, you must have `libfuse2` installed on your system.
-
-**Ubuntu/Debian:**
-
-```bash
-sudo apt install libfuse2
-```
-
-**Fedora:**
-
-```bash
-sudo dnf install fuse-libs
-```
-
-**Arch Linux:**
-
-```bash
-sudo pacman -S fuse2
-```
-
-**openSUSE:**
-
-```bash
-sudo zypper install libfuse2
-```
-
-> [!NOTE]
-> AppImages require `libfuse2`, not `libfuse3`. If Warp fails to launch after installing FUSE, ensure `libfuse2` is installed.
-
-## Testing the Installation
-
-To verify that Warp was installed correctly through Homebrew, run:
-
-```bash
-brew list warp-terminal
-```
-
-Then launch Warp from your application menu or run:
+After install, Warp will appear in your application menu. You can also launch it from the terminal:
 
 ```bash
 warp
 ```
 
-## How it Works
+## Uninstalling
 
-This repository uses **GitHub Actions** to maintain parity with Warp's release cycle:
+```bash
+brew uninstall silentglasses/warp/warp-terminal
+```
 
-1. **Scraper:** A workflow checks `releases.warp.dev` for new versions.
-2. **Validator:** It downloads the new binary, calculates the SHA256 hash, and updates the Formula.
-3. **Badge:** The live version badge at the top of this README is updated via the repository's `shields` branch (powered by BYOB) to reflect the current state of the tap.
+This removes the binary, the launcher shortcut, and all icons from your desktop environment automatically.
+
+## Upgrading
+
+Upgrades happen automatically via the autoupdate workflow. To upgrade manually:
+
+```bash
+brew update && brew upgrade silentglasses/warp/warp-terminal
+```
+
+## Troubleshooting
+
+**The icon doesn't appear in my application menu:**
+
+Log out and back in, or run:
+
+```bash
+update-desktop-database ~/.local/share/applications
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
+```
+
+**Warp fails to launch with a FUSE error:**
+
+Ensure `libfuse2` is installed (see Prerequisites above). On some distros only `libfuse3` is installed by default — you need `libfuse2` specifically.
+
+**Verify the installation:**
+
+```bash
+brew list silentglasses/warp/warp-terminal
+```
+
+## Automation Pipeline
+
+This repository functions as a "living" Tap through a three-stage CI/CD pipeline:
+
+- **Polling**: A GitHub Action scrapes `releases.warp.dev` for version increments.
+- **Validation**: The workflow fetches the latest binaries, calculates new SHA256 hashes, and commits the updated Formula.
+- **Telemetry**: A live version badge is maintained via the shields branch to provide real-time status of the Tap's parity.
+
+Two GitHub Actions workflows keep this tap running:
+
+- **`update-version.yml`** — Runs every 6 hours. Fetches the latest stable version from `releases.warp.dev`, downloads both AppImages to compute SHA-256 checksums, patches the formula, and opens a PR. Does nothing if already up to date.
+- **`tests.yml`** — Runs on every PR that touches the formula. Checks Ruby syntax, runs `brew audit`, and validates the formula loads correctly on Linux.
 
 ## License
 
-The Homebrew Formula code in this repository is available under the [MIT License](LICENSE).
+The Homebrew Formula in this repository is available under the [MIT License](LICENSE).
 
 > [!NOTE]
-> Warp Terminal itself is proprietary software. Please refer to [Warp's Terms of Service](https://www.warp.dev/terms-of-service) for details.
+> Warp Terminal itself is proprietary software. Refer to [Warp's Terms of Service](https://www.warp.dev/terms-of-service) for details.
 
 *Maintained by [@SilentGlasses](https://github.com/SilentGlasses)*
