@@ -161,7 +161,7 @@ jobs:
         uses: RubbaBoy/BYOB@v1.3.0
         with:
           name: warp-linux
-          label: "Warp Linux"
+          label: "Warp Version"
           status: ${{ steps.warp_version.outputs.version }}
           color: "446ca3"
           github_token: ${{ secrets.GITHUB_TOKEN }}
