@@ -75,7 +75,7 @@ gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
 
 **Warp fails to launch with a FUSE error:**
 
-Ensure `libfuse2` is installed (see Prerequisites above). On some distros only `libfuse3` is installed by default — you need `libfuse2` specifically.
+Ensure `libfuse2` is installed (see Prerequisites above). On some distros only `libfuse3` is installed by default, you need `libfuse2` specifically.
 
 **Verify the installation:**
 
@@ -93,8 +93,8 @@ This repository functions as a "living" Tap through a three-stage CI/CD pipeline
 
 Two GitHub Actions workflows keep this tap running:
 
-- **`update-version.yml`** — Runs every 6 hours. Fetches the latest stable version from `releases.warp.dev`, downloads both AppImages to compute SHA-256 checksums, patches the formula, and opens a PR. Does nothing if already up to date.
-- **`tests.yml`** — Runs on every PR that touches the formula. Checks Ruby syntax, runs `brew audit`, and validates the formula loads correctly on Linux.
+- **`update-version.yml`**: Runs every 6 hours. Fetches the latest stable version from `releases.warp.dev`, downloads both AppImages to compute SHA-256 checksums, patches the formula, and opens a PR. Does nothing if already up to date.
+- **`tests.yml`**: Runs on every PR that touches the formula. Checks Ruby syntax, runs `brew audit`, and validates the formula loads correctly on Linux.
 
 ## License
 
