@@ -48,42 +48,33 @@ class WarpTerminal < Formula
     desktop_src = extracted.glob("**/*.desktop").first
     if desktop_src
       desktop_contents = desktop_src.read
-      desktop_contents.gsub!(/^Exec=.*$/, "Exec=#{bin}/warp %U")
-      desktop_contents.gsub!(/^TryExec=.*$/, "TryExec=#{bin}/warp")
+      # Use opt_bin so the path stays valid across upgrades
+      desktop_contents.gsub!(/^Exec=.*$/, "Exec=#{opt_bin}/warp %U")
+      desktop_contents.gsub!(/^TryExec=.*$/, "TryExec=#{opt_bin}/warp")
       desktop_contents += "Categories=System;TerminalEmulator;\n" unless desktop_contents.match?(/^Categories=/)
       (share/"applications").mkpath
       (share/"applications/warp.desktop").write(desktop_contents)
     end
 
-    # Icons — walk the XDG hicolor tree; fall back to root-level images.
-    icon_installed = false
+    # Install icons from the hicolor tree inside the AppImage.
+    # The .desktop file references Icon=dev.warp.Warp so filenames must match.
     extracted.glob("usr/share/icons/**/*.{png,svg}").each do |icon|
-      rel = icon.relative_path_from(extracted/"usr/share")
+      rel  = icon.relative_path_from(extracted/"usr/share")
       dest = share/rel
       dest.dirname.mkpath
       dest.install icon
-      icon_installed = true
-    end
-
-    unless icon_installed
-      extracted.glob("*.{png,svg}").each do |icon|
-        size_dir = share/"icons/hicolor/256x256/apps"
-        size_dir.mkpath
-        (size_dir/"warp.#{icon.extname.delete(".")}").write(icon.read)
-      end
     end
   end
 
   def post_install
-    # Symlink .desktop file into the user XDG location so desktop environments
-    # pick it up without requiring sudo or a system-wide install.
-    xdg_apps = Pathname(ENV["HOME"])/"/.local/share/applications"
+    home = Pathname(ENV["HOME"])
+
+    xdg_apps = home/".local/share/applications"
     xdg_apps.mkpath
     ln_sf share/"applications/warp.desktop", xdg_apps/"warp.desktop"
 
-    # Symlink icons from Homebrew share into the user hicolor icon theme.
-    xdg_icons = Pathname(ENV["HOME"])/".local/share/icons"
-    (share/"icons").find do |src|
+    xdg_icons = home/".local/share/icons"
+    Pathname(share/"icons").find do |src|
       next unless src.file?
 
       rel  = src.relative_path_from(share/"icons")
@@ -94,8 +85,7 @@ class WarpTerminal < Formula
 
     system "update-desktop-database", xdg_apps.to_s if which("update-desktop-database")
     system "gtk-update-icon-cache", "-f", "-t",
-           (Pathname(ENV["HOME"])/".local/share/icons/hicolor").to_s \
-      if which("gtk-update-icon-cache")
+           (home/".local/share/icons/hicolor").to_s if which("gtk-update-icon-cache")
   end
 
   def caveats
