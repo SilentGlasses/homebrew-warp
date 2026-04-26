@@ -101,9 +101,7 @@ jobs:
           echo "Formula patched. Diff:"
           git diff Formula/warp-terminal.rb
 
-      # ── 6. (placeholder step removed — README no longer contains placeholders) ──
-
-      # ── 7. Commit to a feature branch and open a PR ───────────────
+      # ── 6. Commit to a feature branch and open a PR ───────────────
       # Direct pushes to main are blocked by branch protection rules.
       - name: Commit and Push to Feature Branch
         if: steps.check.outputs.needs_update == 'true'
@@ -155,7 +153,7 @@ jobs:
           > Opened automatically by the Autoupdate Warp workflow."
           fi
 
-      # ── 8. Update version badge via BYOB ─────────────────────────
+      # ── 7. Update version badge via BYOB ─────────────────────────
       # BYOB v1.3.0 stores badge JSON in the repo (shields branch),
       # not a Gist. Uses github_token (built-in), not gist-token.
       - name: Update Version Badge
