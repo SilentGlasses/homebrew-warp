@@ -2,7 +2,9 @@
 [![Test Formula](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/tests.yml)
 ![Warp Version](https://byob.yarr.is/SilentGlasses/homebrew-warp/warp-linux)
 
-# brew-warp
+# Homebrew Warp
+
+<img width="100" height="100" alt="logo" align="left" src="https://github.com/user-attachments/assets/7784ea7d-deb1-44a0-af90-2bec574cbd7f" />
 
 A dedicated Homebrew Tap for installing **Warp Terminal** on Linux distributions.
 
