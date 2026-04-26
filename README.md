@@ -1,4 +1,5 @@
-[![Autoupdate Warp](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml/badge.svg)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml)
+[![Autoupdate Warp](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml/badge.svg?branch=main)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml)
+[![Test Formula](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/tests.yml)
 ![Warp Version](https://byob.yarr.is/SilentGlasses/homebrew-warp/warp-linux)
 
 # brew-warp
