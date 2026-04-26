@@ -62,8 +62,28 @@ class WarpTerminal < Formula
       rel  = icon.relative_path_from(extracted/"usr/share")
       dest = share/rel
       dest.dirname.mkpath
-      dest.install icon
+      FileUtils.cp icon, dest
     end
+  end
+
+  def uninstall
+    home = Pathname(ENV["HOME"])
+
+    desktop = home/".local/share/applications/warp.desktop"
+    desktop.unlink if desktop.symlink?
+
+    xdg_icons = home/".local/share/icons"
+    Pathname(share/"icons").find do |src|
+      next unless src.file?
+
+      rel  = src.relative_path_from(share/"icons")
+      link = xdg_icons/rel
+      link.unlink if link.symlink?
+    end
+
+    system "update-desktop-database", (home/".local/share/applications").to_s if which("update-desktop-database")
+    system "gtk-update-icon-cache", "-f", "-t",
+           (home/".local/share/icons/hicolor").to_s if which("gtk-update-icon-cache")
   end
 
   def post_install
@@ -90,20 +110,31 @@ class WarpTerminal < Formula
 
   def caveats
     <<~EOS
-      Warp Terminal is distributed as an AppImage.
-      You must have FUSE (Filesystem in Userspace) installed for it to run.
+      Warp Terminal is distributed as an AppImage and requires FUSE to run.
 
-      Ubuntu/Debian:
-        sudo apt install libfuse2
+      Install the required FUSE library for your distro:
 
-      Fedora:
-        sudo dnf install fuse-libs
+        Ubuntu / Debian:
+          sudo apt install libfuse2
 
-      Arch Linux:
-        sudo pacman -S fuse2
+        Fedora:
+          sudo dnf install fuse-libs
 
-      After installing FUSE, launch Warp from your application menu or run:
-        warp
+        Arch Linux:
+          sudo pacman -S fuse2
+
+        openSUSE:
+          sudo zypper install libfuse2
+
+      Note: AppImages require libfuse2, not libfuse3. If Warp fails to launch
+      after installing FUSE, ensure libfuse2 (not just fuse3) is installed.
+
+      A launcher shortcut is created automatically at:
+        ~/.local/share/applications/warp.desktop
+
+      If the icon does not appear immediately, log out and back in, or run:
+        update-desktop-database ~/.local/share/applications
+        gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
     EOS
   end
 
@@ -113,6 +144,9 @@ class WarpTerminal < Formula
     assert_path_exists bin/"warp"
     assert_predicate bin/"warp", :executable?
     assert_path_exists share/"applications/warp.desktop"
-    assert_match "Exec=", (share/"applications/warp.desktop").read
+    desktop = (share/"applications/warp.desktop").read
+    assert_match "Exec=#{opt_bin}/warp", desktop
+    assert_match "Icon=dev.warp.Warp", desktop
+    assert_match "Type=Application", desktop
   end
 end
