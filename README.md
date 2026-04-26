@@ -52,6 +52,15 @@ sudo dnf install fuse-libs
 sudo pacman -S fuse2
 ```
 
+**openSUSE:**
+
+```bash
+sudo zypper install libfuse2
+```
+
+> [!NOTE]
+> AppImages require `libfuse2`, not `libfuse3`. If Warp fails to launch after installing FUSE, ensure `libfuse2` is installed.
+
 ## Testing the Installation
 
 To verify that Warp was installed correctly through Homebrew, run:
