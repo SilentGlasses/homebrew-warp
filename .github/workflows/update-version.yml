@@ -116,14 +116,21 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git checkout -B "$BRANCH"
-          git add Formula/warp-terminal.rb README.md
+          git add Formula/warp-terminal.rb
+
+          if git diff --cached --quiet; then
+            echo "Nothing changed after patching — skipping commit."
+            echo "branch=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           git commit -m "chore(automation): bump warp to ${VERSION}"
           git push --force-with-lease origin "$BRANCH"
 
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Open Pull Request
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.needs_update == 'true' && steps.git_push.outputs.branch != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -152,7 +159,7 @@ jobs:
       # BYOB v1.3.0 stores badge JSON in the repo (shields branch),
       # not a Gist. Uses github_token (built-in), not gist-token.
       - name: Update Version Badge
-        if: steps.check.outputs.needs_update == 'true'
+        if: steps.check.outputs.needs_update == 'true' && steps.git_push.outputs.branch != ''
         uses: RubbaBoy/BYOB@v1.3.0
         with:
           name: warp-linux
