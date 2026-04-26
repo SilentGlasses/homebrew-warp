@@ -165,5 +165,5 @@ jobs:
           name: warp-linux
           label: "Warp Linux"
           status: ${{ steps.warp_version.outputs.version }}
-          color: "01e6ca"
+          color: "446ca3"
           github_token: ${{ secrets.GITHUB_TOKEN }}
