@@ -4,21 +4,15 @@ class WarpTerminal < Formula
   # Warp is proprietary — no standard SPDX identifier applies.
   license :cannot_represent
 
-  # ── DSL order: livecheck → disable! → depends_on → on_* ───────────
-  #
-  # livecheck parses the version from the download URL itself.
-  # Warp URLs look like: .../stable/v0.2026.04.22.08.46.stable_02/Warp-x86_64.AppImage
-  # The regex captures everything after /stable/ and before the next slash.
   livecheck do
     url :stable
     regex(%r{/stable/(v[^/]+)/}i)
   end
 
-  # This formula is Linux-only. disable! at the top level (outside any
-  # on_* block) is evaluated by brew readall for every simulated OS target,
-  # which prevents the "formula requires at least a URL" error on macOS.
-  disable! date:    "2024-01-01",
-           because: "macOS users should install via: brew install --cask warp"
+  on_macos do
+    disable! date:    "2024-01-01",
+             because: "macOS users should install via: brew install --cask warp"
+  end
 
   depends_on :linux
 
