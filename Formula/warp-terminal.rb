@@ -21,11 +21,11 @@ class WarpTerminal < Formula
   # anchor comments. Do NOT remove or rename those comments.
   on_linux do
     if Hardware::CPU.intel?
-      url "https://releases.warp.dev/stable/v0.2026.06.03.09.49.stable_01/Warp-x86_64.AppImage" # x86_64_url
-      sha256 "056b00be3f9bca208e030a1e228869b76d3a045a3fda5ca6d5a458382ade20ea" # x86_64_sha256
+      url "https://releases.warp.dev/stable/v0.2026.06.17.09.49.stable_02/Warp-x86_64.AppImage" # x86_64_url
+      sha256 "b7672e40cbe2c2e1dc69a0d785d324130b6956637e9f4fed52db8156c021a23c" # x86_64_sha256
     elsif Hardware::CPU.arm?
-      url "https://releases.warp.dev/stable/v0.2026.06.03.09.49.stable_01/Warp-aarch64.AppImage" # arm64_url
-      sha256 "5819a5cfa5c394ca2d1f92f8fc51d53239d895cd9004c16924d91d95d92c567c" # arm64_sha256
+      url "https://releases.warp.dev/stable/v0.2026.06.17.09.49.stable_02/Warp-aarch64.AppImage" # arm64_url
+      sha256 "dd8ef02c020d9932db19f386041443a2dd687999d61be893a205ab75ece6d282" # arm64_sha256
     end
   end
 
