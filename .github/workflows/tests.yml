@@ -5,34 +5,89 @@ on:
     branches: [main]
     paths:
       - "Formula/**"
+      - "scripts/**"
+      - ".github/workflows/**"
   pull_request:
     branches: [main]
-    paths:
-      - "Formula/**"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
+    name: Test Formula
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
 
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@main
+        uses: Homebrew/actions/setup-homebrew@8f3d1ec8a696b3b9d9a6c3696b6c73033cab69e4 # main
 
       - name: Check Ruby syntax
         run: ruby -c Formula/warp-terminal.rb
 
-      # Skip style cops: dynamic `version stable_version || "latest"` trips
-      # FormulaAudit/Version ("empty string") even though runtime resolution works.
+      # Warp versions end with `.stable_NN`, which FormulaAudit style flags.
       - name: Audit formula
         run: brew audit --skip-style silentglasses/warp/warp-terminal
 
       - name: Validate formula loads without errors
         run: brew readall --no-simulate silentglasses/warp
 
-      - name: Resolve current stable version via formula
+      - name: Validate formula security invariants
+        run: ./scripts/validate-formula-security.sh
+
+  validate-bump-diff:
+    name: Validate bump diff
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Determine whether to enforce pin-only allowlist
+        id: kind
         run: |
-          brew info --json=v1 silentglasses/warp/warp-terminal \
-            | python3 -c 'import json,sys,re; d=json.load(sys.stdin)[0]; v=d["versions"]["stable"]; u=d["urls"]["stable"]["url"]; print(v); print(u); assert re.fullmatch(r"\d+(?:\.\d+)+\.stable_\d+", v), v; assert u.startswith("https://releases.warp.dev/stable/v"), u; assert "AppImage" in u'
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          mapfile -t files < <(git diff --name-only "$BASE_SHA"...HEAD)
+          echo "Changed files:"
+          printf ' - %s\n' "${files[@]}"
+
+          only_formula=true
+          if [[ ${#files[@]} -eq 0 ]]; then
+            only_formula=false
+          fi
+          for f in "${files[@]}"; do
+            if [[ "$f" != "Formula/warp-terminal.rb" ]]; then
+              only_formula=false
+              break
+            fi
+          done
+
+          BRANCH="${{ github.head_ref }}"
+          if [[ "$only_formula" == "true" || "$BRANCH" == chore/bump-warp-* ]]; then
+            echo "enforce=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enforce=false" >> "$GITHUB_OUTPUT"
+            echo "Broader human PR, pin allowlist not enforced (review the full diff)."
+          fi
+
+      - name: Enforce pin-only formula diff
+        if: steps.kind.outputs.enforce == 'true'
+        run: ./scripts/validate-formula-security.sh "${{ github.event.pull_request.base.sha }}"
+
+      - name: Reject workflow/script changes on automation bump branches
+        if: startsWith(github.head_ref, 'chore/bump-warp-')
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          if git diff --name-only "$BASE_SHA"...HEAD | grep -E '^(\.github/|scripts/)'; then
+            echo "::error::Automation bump branches must not change workflows or scripts"
+            git diff --name-only "$BASE_SHA"...HEAD
+            exit 1
+          fi
+          echo "ok: bump branch does not touch workflows/scripts"

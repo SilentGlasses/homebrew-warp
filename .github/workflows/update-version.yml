@@ -1,26 +1,34 @@
-name: Refresh Warp Version Badge
+name: Autoupdate Warp
 
 on:
   schedule:
     - cron: "0 */6 * * *" # Check every 6 hours
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
-jobs:
-  refresh-badge:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # BYOB writes badge JSON to the shields branch
+concurrency:
+  group: autoupdate-warp
+  cancel-in-progress: false
 
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          # Prefer AUTO_MERGE_TOKEN so opened PRs can trigger checks and auto-merge.
+          # Falls back to GITHUB_TOKEN when the secret is unset.
+          token: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
 
-      # Formula resolves the latest stable release at install/upgrade time.
-      # This workflow only keeps the README version badge current.
       - name: Fetch Latest Warp Version
         id: warp_version
         run: |
-          VERSION=$(python3 - <<'PY'
+          eval "$(python3 - <<'PY'
           import json
           import re
           import urllib.request
@@ -34,27 +42,171 @@ jobs:
               },
           )
           with urllib.request.urlopen(req, timeout=30) as resp:
-              if resp.geturl().startswith("http://"):
+              if not resp.geturl().startswith("https://"):
                   raise SystemExit("refusing non-HTTPS metadata response")
               data = json.load(resp)
 
-          version = data.get("stable", {}).get("version")
-          if not version:
-              raise SystemExit("Could not parse stable version")
+          raw = data.get("stable", {}).get("version")
+          if not raw:
+              raise SystemExit("Could not parse stable.version")
 
-          normalized = version[1:] if version.startswith("v") else version
+          # Formula stores version without leading "v" (macOS cask convention).
+          normalized = raw[1:] if raw.startswith("v") else raw
           if not re.fullmatch(r"\d+(?:\.\d+)+\.stable_\d+", normalized):
-              raise SystemExit(f"Unexpected version format: {version!r}")
+              raise SystemExit(f"Unexpected version format: {raw!r}")
 
-          print(version)
+          print(f"export RAW_VERSION={raw}")
+          print(f"export VERSION={normalized}")
           PY
-          )
+          )"
 
-          echo "Latest stable version: $VERSION"
+          echo "Latest stable version: $VERSION (raw $RAW_VERSION)"
+          echo "raw_version=$RAW_VERSION" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Check if Update is Needed
+        id: check
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          CURRENT=$(grep -oP '(?<=^  version ")[^"]+' Formula/warp-terminal.rb | head -1 || true)
+
+          echo "Current formula version : ${CURRENT:-unknown}"
+          echo "Latest upstream version : $VERSION"
+
+          if [ "$CURRENT" = "$VERSION" ]; then
+            echo "Formula is already up to date."
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Update required."
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch AppImages and Compute SHA256
+        id: warp_data
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          RAW="${{ steps.warp_version.outputs.raw_version }}"
+          BASE_URL="https://releases.warp.dev/stable/${RAW}"
+          URL_X86="${BASE_URL}/Warp-x86_64.AppImage"
+          URL_ARM="${BASE_URL}/Warp-aarch64.AppImage"
+
+          echo "Downloading x86_64 AppImage..."
+          SHA256_X86=$(curl -fsSL "$URL_X86" | sha256sum | awk '{print $1}')
+          [ -n "$SHA256_X86" ] || { echo "::error::SHA256 failed for x86_64"; exit 1; }
+
+          echo "Downloading aarch64 AppImage..."
+          SHA256_ARM=$(curl -fsSL "$URL_ARM" | sha256sum | awk '{print $1}')
+          [ -n "$SHA256_ARM" ] || { echo "::error::SHA256 failed for aarch64"; exit 1; }
+
+          echo "x86_64  sha256: $SHA256_X86"
+          echo "aarch64 sha256: $SHA256_ARM"
+
+          {
+            echo "sha256_x86=$SHA256_X86"
+            echo "sha256_arm=$SHA256_ARM"
+            echo "url_x86=$URL_X86"
+            echo "url_arm=$URL_ARM"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update Formula
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          X86_SHA="${{ steps.warp_data.outputs.sha256_x86 }}"
+          ARM_SHA="${{ steps.warp_data.outputs.sha256_arm }}"
+
+          # Only touch pinned version + sha256 anchor lines.
+          sed -i -E "s/^(  version \")[^\"]+(\")/\1${VERSION}\2/" Formula/warp-terminal.rb
+          sed -i "s|sha256 \".*\" # x86_64_sha256|sha256 \"${X86_SHA}\" # x86_64_sha256|" Formula/warp-terminal.rb
+          sed -i "s|sha256 \".*\" # arm64_sha256|sha256 \"${ARM_SHA}\" # arm64_sha256|" Formula/warp-terminal.rb
+
+          echo "Formula patched. Diff:"
+          git diff Formula/warp-terminal.rb
+
+          grep -q "version \"${VERSION}\"" Formula/warp-terminal.rb
+          grep -q "sha256 \"${X86_SHA}\" # x86_64_sha256" Formula/warp-terminal.rb
+          grep -q "sha256 \"${ARM_SHA}\" # arm64_sha256" Formula/warp-terminal.rb
+          ruby -c Formula/warp-terminal.rb
+          ./scripts/validate-formula-security.sh
+
+      - name: Commit and Push to Feature Branch
+        if: steps.check.outputs.needs_update == 'true'
+        id: git_push
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          BRANCH="chore/bump-warp-v${VERSION}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$BRANCH"
+          git add Formula/warp-terminal.rb
+
+          if git diff --cached --quiet; then
+            echo "Nothing changed after patching, skipping commit."
+            echo "branch=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Defense in depth: staged diff must be pin-only before push.
+          ./scripts/validate-formula-security.sh origin/main
+
+          git commit -m "chore(automation): bump warp-terminal to ${VERSION}"
+          git push --force-with-lease origin "$BRANCH"
+
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open Pull Request and Enable Auto-Merge
+        if: steps.check.outputs.needs_update == 'true' && steps.git_push.outputs.branch != ''
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.warp_version.outputs.version }}"
+          BRANCH="${{ steps.git_push.outputs.branch }}"
+          X86_SHA="${{ steps.warp_data.outputs.sha256_x86 }}"
+          ARM_SHA="${{ steps.warp_data.outputs.sha256_arm }}"
+
+          EXISTING=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
+
+          if [ -n "$EXISTING" ]; then
+            echo "PR #${EXISTING} already exists for branch ${BRANCH}"
+            PR_NUMBER="$EXISTING"
+          else
+            PR_URL=$(gh pr create \
+              --base main \
+              --head "$BRANCH" \
+              --title "chore(automation): bump warp-terminal to ${VERSION}" \
+              --body "$(cat <<BODY
+          Automated version bump for \`warp-terminal\` to \`${VERSION}\`.
+
+          **Changes**
+          - Pinned \`version\` → \`${VERSION}\`
+          - Updated x86_64 SHA256 → \`${X86_SHA}\`
+          - Updated aarch64 SHA256 → \`${ARM_SHA}\`
+
+          Downloads verified from \`releases.warp.dev\` over HTTPS before the formula was patched.
+          CI enforces a pin-only diff allowlist (version + sha256 anchors).
+
+          > Opened automatically by the Autoupdate Warp workflow.
+          > Auto-merge waits for required status checks when repository settings allow it.
+          BODY
+          )")
+            echo "Created $PR_URL"
+            PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq .number)
+          fi
+
+          # Wait for required checks via --auto. Do NOT force-merge immediately:
+          # that would bypass the security gates on a solo-maintainer repo.
+          if gh pr merge "$PR_NUMBER" --squash --delete-branch --auto; then
+            echo "Auto-merge enabled for PR #${PR_NUMBER}"
+          else
+            echo "::warning::Could not enable auto-merge for PR #${PR_NUMBER}. Check: Allow auto-merge, required checks, and AUTO_MERGE_TOKEN."
+            exit 1
+          fi
+
       - name: Update Version Badge
-        uses: RubbaBoy/BYOB@v1.3.0
+        if: always() && steps.warp_version.outputs.version != ''
+        uses: RubbaBoy/BYOB@24f464284c1fd32028524b59607d417a2e36fee7 # v1.3.0
         with:
           name: warp-linux
           label: "Warp Version"
