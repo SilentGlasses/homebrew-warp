@@ -1,25 +1,50 @@
-[![Autoupdate Warp](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml/badge.svg?branch=main)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/update-version.yml)
-[![Test Formula](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/SilentGlasses/homebrew-warp/actions/workflows/tests.yml)
 ![Warp Version](https://byob.yarr.is/SilentGlasses/homebrew-warp/warp-linux)
 
 # Homebrew Warp
 
-<img width="100" height="100" alt="logo" align="left" src="https://github.com/user-attachments/assets/7784ea7d-deb1-44a0-af90-2bec574cbd7f" />
+A Homebrew tap that installs [Warp Terminal](https://www.warp.dev/) on Linux. The official Homebrew cask is macOS-only; this formula provides x86_64 and ARM64 Linux support via Warp's official AppImage builds.
 
-A streamlined Homebrew Tap designed to bring the Warp Terminal to Linux distributions with the reliability of a managed package, providing a native Formula that handles binary management, checksum verification, and architecture detection.
+The formula always tracks Warp's current **stable** release. You do not need version-bump PRs in this tap for routine upgrades.
 
-Warp is a modern, Rust-based terminal with AI and collaborative features. The official Homebrew cask is macOS-only, this tap provides a managed Formula specifically for Linux users.
+## Install
 
-## Features
+Install [`libfuse2`](#prerequisites) first, then:
 
-- **Automated Updates:** Checks for new Warp releases every 6 hours and opens a PR automatically when one is found.
-- **SHA-256 Verified:** Every update computes a fresh checksum of the official Warp binaries before updating the formula.
-- **Cross-Architecture:** Supports both **x86_64** and **ARM64** (aarch64) Linux.
-- **Desktop Integration:** Automatically installs a launcher shortcut and icons into your desktop environment on install, and removes them cleanly on uninstall.
+```bash
+brew install silentglasses/warp/warp-terminal
+```
+
+Launch from your app menu or:
+
+```bash
+warp
+```
+
+## Upgrade
+
+Homebrew reloads the formula on upgrade, fetches the latest stable version from Warp, and installs it when newer than your receipt:
+
+```bash
+brew update && brew upgrade silentglasses/warp/warp-terminal
+```
+
+If a new Warp release is out and `brew upgrade` still reports nothing to do, force a refresh:
+
+```bash
+brew reinstall silentglasses/warp/warp-terminal
+```
+
+## Uninstall
+
+```bash
+brew uninstall silentglasses/warp/warp-terminal
+```
+
+Removes the binary, desktop launcher, and icons.
 
 ## Prerequisites
 
-Warp is distributed as an **AppImage** and requires `libfuse2` to run. Install it for your distro before installing Warp:
+Warp's AppImage needs **libfuse2** (not libfuse3):
 
 | Distro | Command |
 |---|---|
@@ -29,42 +54,49 @@ Warp is distributed as an **AppImage** and requires `libfuse2` to run. Install i
 | openSUSE | `sudo zypper install libfuse2` |
 
 > [!NOTE]
-> AppImages require `libfuse2`, not `libfuse3`. Version 3 is not backwards compatible and will not allow the AppImage to initialize.
-> If Warp fails to launch after installing FUSE, ensure `libfuse2` specifically is installed.
+> If Warp fails to launch after installing FUSE, confirm `libfuse2` is present. `libfuse3` alone is not enough.
 
-## Installation
+## How updates work
 
-Ensure you have [Homebrew](https://brew.sh/) installed, then:
+Unlike the official macOS cask (pinned `version` + `sha256`, bumped by Homebrew bots), this Linux formula resolves the release at install/upgrade time:
 
-```bash
-brew install silentglasses/warp/warp-terminal
-```
+1. Reads `https://releases.warp.dev/channel_versions.json` over HTTPS.
+2. Validates `stable.version` (same version shape as Homebrew's `warp` cask, without a leading `v`).
+3. Downloads `https://releases.warp.dev/stable/v{version}/Warp-{arch}.AppImage` for your CPU.
+4. Homebrew compares that version to the installed receipt and upgrades when upstream is newer.
+5. If metadata is unreachable, falls back to Warp's official redirects:
+   - `https://app.warp.dev/download?package=appimage`
+   - `https://app.warp.dev/download?package=appimage_arm64`
 
-After install, Warp will appear in your application menu. You can also launch it from the terminal:
+Checksums use `sha256 :no_check` so the tap can track upstream without maintenance PRs. Artifacts still come only from Warp's hosts.
 
-```bash
-warp
-```
+The version badge at the top of this README is refreshed by GitHub Actions for visibility only. It does not drive installs.
 
-## Uninstalling
+### What users run
 
-```bash
-brew uninstall silentglasses/warp/warp-terminal
-```
+| Goal | Command |
+|---|---|
+| First install | `brew install silentglasses/warp/warp-terminal` |
+| Normal upgrade | `brew update && brew upgrade silentglasses/warp/warp-terminal` |
+| Force latest pull | `brew reinstall silentglasses/warp/warp-terminal` |
+| Remove | `brew uninstall silentglasses/warp/warp-terminal` |
 
-This removes the binary, the launcher shortcut, and all icons from your desktop environment automatically.
+### What maintainers no longer do
 
-## Upgrading
+- Manually bump URLs or SHA-256 values in the formula
+- Review/merge routine automation PRs for each Warp release
 
-Upgrades happen automatically via the autoupdate workflow. To upgrade manually:
+Touch this repo when install logic changes (desktop file layout, architectures, Warp API shape)—not for ordinary version churn.
 
-```bash
-brew update && brew upgrade silentglasses/warp/warp-terminal
-```
+## Features
+
+- **Always latest stable** — resolved from Warp at install/upgrade time
+- **x86_64 and ARM64 (aarch64)** Linux
+- **Desktop integration** — `.desktop` launcher and icons installed on install, removed on uninstall
 
 ## Troubleshooting
 
-**The icon doesn't appear in my application menu:**
+**Icon missing from the app menu**
 
 Log out and back in, or run:
 
@@ -73,34 +105,43 @@ update-desktop-database ~/.local/share/applications
 gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
 ```
 
-**Warp fails to launch with a FUSE error:**
+**FUSE / AppImage launch error**
 
-Ensure `libfuse2` is installed (see Prerequisites above). On some distros only `libfuse3` is installed by default, you need `libfuse2` specifically.
+Install `libfuse2` for your distro (see [Prerequisites](#prerequisites)).
 
-**Verify the installation:**
+**Confirm the package is present**
 
 ```bash
 brew list silentglasses/warp/warp-terminal
+brew info silentglasses/warp/warp-terminal
 ```
 
-## Automation Pipeline
+## Security model
 
-This repository functions as a "living" Tap through a three-stage CI/CD pipeline:
+This formula trades pinned checksums for zero-touch version tracking.
 
-- **Polling**: A GitHub Action scrapes `releases.warp.dev` for version increments.
-- **Validation**: The workflow fetches the latest binaries, calculates new SHA256 hashes, and commits the updated Formula.
-- **Telemetry**: A live version badge is maintained via the shields branch to provide real-time status of the Tap's parity.
+| Control | Behavior |
+|---|---|
+| Transport | HTTPS to `releases.warp.dev` (metadata + versioned AppImages) or `app.warp.dev` (fallback redirects) |
+| Version metadata | Host allowlisted; response size capped; version must match an allowlisted pattern before use in URLs |
+| Artifact integrity | `sha256 :no_check` — relies on TLS and Warp's release infrastructure |
+| Install-time execution | Runs the AppImage with `--appimage-extract` for `.desktop`/icons (same trust class as a vendor installer) |
+| Desktop/icon install | Fixed `.desktop` path; icon copy/link rejects `..` path segments |
+| macOS | Formula disabled; use `brew install --cask warp` |
 
-Two GitHub Actions workflows keep this tap running:
+**Residual risks (accepted for low maintenance):**
 
-- **`update-version.yml`**: Runs every 6 hours. Fetches the latest stable version from `releases.warp.dev`, downloads both AppImages to compute SHA-256 checksums, patches the formula, and opens a PR. Does nothing if already up to date.
-- **`tests.yml`**: Runs on every PR that touches the formula. Checks Ruby syntax, runs `brew audit`, and validates the formula loads correctly on Linux.
+- A compromised Warp release host could serve a bad AppImage without a checksum failure.
+- Formula load performs a short network request to Warp (timeouts applied). Metadata failure falls back to Warp's "latest" redirects.
+- This is a third-party tap; trust both this repository and Warp.
+
+Comparable to downloading Warp's AppImage from the vendor site. Weaker integrity than a pinned-SHA Homebrew core package or the official macOS cask's pinned `version` + `sha256` (which require ongoing bump PRs).
 
 ## License
 
-The Homebrew Formula in this repository is available under the [MIT License](LICENSE).
+The Homebrew formula in this repository is available under the [MIT License](LICENSE).
 
 > [!NOTE]
-> Warp Terminal itself is proprietary software. Refer to [Warp's Terms of Service](https://www.warp.dev/terms-of-service) for details.
+> Warp Terminal is proprietary. See [Warp's Terms of Service](https://www.warp.dev/terms-of-service).
 
 *Maintained by [@SilentGlasses](https://github.com/SilentGlasses)*
