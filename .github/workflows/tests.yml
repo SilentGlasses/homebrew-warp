@@ -54,27 +54,22 @@ jobs:
         id: kind
         run: |
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          BRANCH="${{ github.head_ref }}"
           mapfile -t files < <(git diff --name-only "$BASE_SHA"...HEAD)
           echo "Changed files:"
           printf ' - %s\n' "${files[@]}"
+          echo "Branch: $BRANCH"
 
-          only_formula=true
-          if [[ ${#files[@]} -eq 0 ]]; then
-            only_formula=false
-          fi
-          for f in "${files[@]}"; do
-            if [[ "$f" != "Formula/warp-terminal.rb" ]]; then
-              only_formula=false
-              break
-            fi
-          done
-
-          BRANCH="${{ github.head_ref }}"
-          if [[ "$only_formula" == "true" || "$BRANCH" == chore/bump-warp-* ]]; then
+          # Pin-only allowlist is ONLY for automation bump branches.
+          # Human PRs (including formula-only install/security fixes) must be
+          # free to change install logic; they still run formula security
+          # invariants in the Test Formula job.
+          if [[ "$BRANCH" == chore/bump-warp-* ]]; then
             echo "enforce=true" >> "$GITHUB_OUTPUT"
+            echo "Automation bump branch — enforcing pin-only formula diff."
           else
             echo "enforce=false" >> "$GITHUB_OUTPUT"
-            echo "Broader human PR, pin allowlist not enforced (review the full diff)."
+            echo "Human PR — pin-only allowlist not enforced (review the full diff)."
           fi
 
       - name: Enforce pin-only formula diff
