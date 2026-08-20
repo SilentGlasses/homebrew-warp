@@ -1,0 +1,12 @@
+# Ownership map for this solo-maintained tap.
+# GitHub uses this when "Require review from Code Owners" is enabled.
+# For a solo repo, prefer requiring status checks over required reviews
+# so automation can auto-merge bump PRs without a second human.
+
+* @SilentGlasses
+
+# High-sensitivity paths: treat changes here as human-reviewed even if
+# branch protection does not hard-require code-owner approval.
+/.github/ @SilentGlasses
+/scripts/ @SilentGlasses
+/Formula/warp-terminal.rb @SilentGlasses
