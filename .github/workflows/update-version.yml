@@ -1,4 +1,4 @@
-name: Autoupdate Warp
+name: Refresh Warp Version Badge
 
 on:
   schedule:
@@ -6,158 +6,54 @@ on:
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
-  update-formula:
+  refresh-badge:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write # BYOB writes badge JSON to the shields branch
 
     steps:
-      # ── 1. Checkout ───────────────────────────────────────────────
       - name: Checkout Repository
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
-      # ── 2. Resolve latest stable version ─────────────────────────
-      # JSON shape: { "stable": { "version": "v0.YYYY..." } }
+      # Formula resolves the latest stable release at install/upgrade time.
+      # This workflow only keeps the README version badge current.
       - name: Fetch Latest Warp Version
         id: warp_version
         run: |
-          API_URL="https://releases.warp.dev/channel_versions.json"
-          VERSION=$(curl -fsSL "$API_URL" | jq -r '.stable.version')
+          VERSION=$(python3 - <<'PY'
+          import json
+          import re
+          import urllib.request
 
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "::error::Could not parse stable version from $API_URL"
-            exit 1
-          fi
+          url = "https://releases.warp.dev/channel_versions.json"
+          req = urllib.request.Request(
+              url,
+              headers={
+                  "User-Agent": "Homebrew-silentglasses-warp",
+                  "Accept": "application/json",
+              },
+          )
+          with urllib.request.urlopen(req, timeout=30) as resp:
+              if resp.geturl().startswith("http://"):
+                  raise SystemExit("refusing non-HTTPS metadata response")
+              data = json.load(resp)
+
+          version = data.get("stable", {}).get("version")
+          if not version:
+              raise SystemExit("Could not parse stable version")
+
+          normalized = version[1:] if version.startswith("v") else version
+          if not re.fullmatch(r"\d+(?:\.\d+)+\.stable_\d+", normalized):
+              raise SystemExit(f"Unexpected version format: {version!r}")
+
+          print(version)
+          PY
+          )
 
           echo "Latest stable version: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      # ── 3. Early-exit if already up to date ──────────────────────
-      # Avoids downloading ~200 MB of AppImages on no-op runs.
-      - name: Check if Update is Needed
-        id: check
-        run: |
-          VERSION="${{ steps.warp_version.outputs.version }}"
-          CURRENT=$(grep -oP '(?<=stable/)v[^/]+(?=/Warp-)' Formula/warp-terminal.rb | head -1 || true)
-
-          echo "Current formula version : ${CURRENT:-unknown}"
-          echo "Latest upstream version : $VERSION"
-
-          if [ "$CURRENT" = "$VERSION" ]; then
-            echo "Formula is already up to date."
-            echo "needs_update=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Update required."
-            echo "needs_update=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      # ── 4. Download both AppImages and compute SHA256 ─────────────
-      - name: Fetch AppImages and Compute SHA256
-        id: warp_data
-        if: steps.check.outputs.needs_update == 'true'
-        run: |
-          VERSION="${{ steps.warp_version.outputs.version }}"
-          BASE_URL="https://releases.warp.dev/stable/${VERSION}"
-          URL_X86="${BASE_URL}/Warp-x86_64.AppImage"
-          URL_ARM="${BASE_URL}/Warp-aarch64.AppImage"
-
-          echo "Downloading x86_64 AppImage..."
-          SHA256_X86=$(curl -fsSL "$URL_X86" | sha256sum | awk '{print $1}')
-          [ -z "$SHA256_X86" ] && { echo "::error::SHA256 failed for x86_64"; exit 1; }
-
-          echo "Downloading aarch64 AppImage..."
-          SHA256_ARM=$(curl -fsSL "$URL_ARM" | sha256sum | awk '{print $1}')
-          [ -z "$SHA256_ARM" ] && { echo "::error::SHA256 failed for aarch64"; exit 1; }
-
-          echo "x86_64  sha256: $SHA256_X86"
-          echo "aarch64 sha256: $SHA256_ARM"
-
-          {
-            echo "sha256_x86=$SHA256_X86"
-            echo "sha256_arm=$SHA256_ARM"
-            echo "url_x86=$URL_X86"
-            echo "url_arm=$URL_ARM"
-          } >> "$GITHUB_OUTPUT"
-
-      # ── 5. Patch the formula ──────────────────────────────────────
-      # Each sed targets a unique trailing anchor comment so the two
-      # url lines and two sha256 lines update independently.
-      - name: Update Formula
-        if: steps.check.outputs.needs_update == 'true'
-        run: |
-          X86_URL="${{ steps.warp_data.outputs.url_x86 }}"
-          ARM_URL="${{ steps.warp_data.outputs.url_arm }}"
-          X86_SHA="${{ steps.warp_data.outputs.sha256_x86 }}"
-          ARM_SHA="${{ steps.warp_data.outputs.sha256_arm }}"
-
-          sed -i "s|url \".*\" # x86_64_url|url \"${X86_URL}\" # x86_64_url|" Formula/warp-terminal.rb
-          sed -i "s|sha256 \".*\" # x86_64_sha256|sha256 \"${X86_SHA}\" # x86_64_sha256|" Formula/warp-terminal.rb
-          sed -i "s|url \".*\" # arm64_url|url \"${ARM_URL}\" # arm64_url|" Formula/warp-terminal.rb
-          sed -i "s|sha256 \".*\" # arm64_sha256|sha256 \"${ARM_SHA}\" # arm64_sha256|" Formula/warp-terminal.rb
-
-          echo "Formula patched. Diff:"
-          git diff Formula/warp-terminal.rb
-
-      # ── 6. Commit to a feature branch and open a PR ───────────────
-      # Direct pushes to main are blocked by branch protection rules.
-      - name: Commit and Push to Feature Branch
-        if: steps.check.outputs.needs_update == 'true'
-        id: git_push
-        run: |
-          VERSION="${{ steps.warp_version.outputs.version }}"
-          BRANCH="chore/bump-warp-${VERSION}"
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git checkout -B "$BRANCH"
-          git add Formula/warp-terminal.rb
-
-          if git diff --cached --quiet; then
-            echo "Nothing changed after patching — skipping commit."
-            echo "branch=" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          git commit -m "chore(automation): bump warp to ${VERSION}"
-          git push --force-with-lease origin "$BRANCH"
-
-          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
-
-      - name: Open Pull Request
-        if: steps.check.outputs.needs_update == 'true' && steps.git_push.outputs.branch != ''
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ steps.warp_version.outputs.version }}"
-          BRANCH="${{ steps.git_push.outputs.branch }}"
-
-          EXISTING=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || true)
-
-          if [ -n "$EXISTING" ]; then
-            echo "PR #${EXISTING} already exists for branch ${BRANCH} — skipping."
-          else
-            gh pr create \
-              --base main \
-              --head "$BRANCH" \
-              --title "chore(automation): bump warp to ${VERSION}" \
-              --body "Automated version bump to \`${VERSION}\`.
-
-          **Changes:**
-          - Updated x86_64 URL and SHA256
-          - Updated aarch64 URL and SHA256
-
-          > Opened automatically by the Autoupdate Warp workflow."
-          fi
-
-      # ── 7. Update version badge via BYOB ─────────────────────────
-      # BYOB v1.3.0 stores badge JSON in the repo (shields branch),
-      # not a Gist. Uses github_token (built-in), not gist-token.
       - name: Update Version Badge
-        if: steps.check.outputs.needs_update == 'true' && steps.git_push.outputs.branch != ''
         uses: RubbaBoy/BYOB@v1.3.0
         with:
           name: warp-linux
