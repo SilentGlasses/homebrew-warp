@@ -41,13 +41,20 @@ class WarpTerminal < Formula
       matches.fetch(0)
     end
 
-    bin.install appimage => "warp"
-
-    # ── Desktop integration ──────────────────────────────────────────
-    system bin/"warp", "--appimage-extract"
+    # Homebrew stages downloads without +x. Formula#system uses Kernel.exec,
+    # which fails with a bare "Failed to execute" if the AppImage is not
+    # executable. Extract from the buildpath *before* bin.install — running
+    # the Cellar copy via `system bin/"warp"` is unreliable under Homebrew's
+    # Linux install runner. --appimage-extract does not require FUSE.
+    chmod "+x", appimage
+    system buildpath/appimage, "--appimage-extract"
 
     extracted = Pathname("squashfs-root")
     odie "AppImage extraction did not produce squashfs-root" unless extracted.directory?
+
+    bin.install appimage => "warp"
+
+    # ── Desktop integration ──────────────────────────────────────────
 
     # For .desktop, rewrite Exec= to the absolute Homebrew bin path so the
     # launcher works even when brew's bin is not in the user's $PATH.
