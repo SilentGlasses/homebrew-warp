@@ -3,7 +3,7 @@
 class WarpTerminal < Formula
   desc "Rust-based terminal with AI, built for teams"
   homepage "https://www.warp.dev/"
-  version "0.2026.08.26.17.59.stable_01"
+  version "0.2026.09.02.08.27.stable_01"
   # Warp is proprietary so no standard SPDX identifier applies.
   license :cannot_represent
 
@@ -22,11 +22,11 @@ class WarpTerminal < Formula
   on_linux do
     on_intel do
       url "https://releases.warp.dev/stable/v#{version}/Warp-x86_64.AppImage" # x86_64_url
-      sha256 "16f060c1faa2de16bdbdc94b35b6eb2e7cd0a6f8987ddcae6814dc50961c9ec7" # x86_64_sha256
+      sha256 "57426e3b316a990cfde82912bed3f26168d0a5affde0b40eb92da1c383f01832" # x86_64_sha256
     end
     on_arm do
       url "https://releases.warp.dev/stable/v#{version}/Warp-aarch64.AppImage" # arm64_url
-      sha256 "b1e5775dce25b42e95088ace14ac053c6154be869deaf0aac387628dd1d92470" # arm64_sha256
+      sha256 "ef97433689bc43d172099d7744e45f61e9ef8b334cde8b8a0b81f2f96dc22747" # arm64_sha256
     end
   end
 
