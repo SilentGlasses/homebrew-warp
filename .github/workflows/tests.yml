@@ -30,7 +30,6 @@ jobs:
       - name: Check Ruby syntax
         run: ruby -c Formula/warp-terminal.rb
 
-      # Warp versions end with `.stable_NN`, which FormulaAudit style flags.
       - name: Audit formula
         run: brew audit --skip-style silentglasses/warp/warp-terminal
 
@@ -60,10 +59,6 @@ jobs:
           printf ' - %s\n' "${files[@]}"
           echo "Branch: $BRANCH"
 
-          # Pin-only allowlist is ONLY for automation bump branches.
-          # Human PRs (including formula-only install/security fixes) must be
-          # free to change install logic; they still run formula security
-          # invariants in the Test Formula job.
           if [[ "$BRANCH" == chore/bump-warp-* ]]; then
             echo "enforce=true" >> "$GITHUB_OUTPUT"
             echo "Automation bump branch — enforcing pin-only formula diff."

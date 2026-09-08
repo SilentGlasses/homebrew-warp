@@ -4,7 +4,7 @@ class WarpTerminal < Formula
   desc "Rust-based terminal with AI, built for teams"
   homepage "https://www.warp.dev/"
   version "0.2026.09.02.08.27.stable_01"
-  # Warp is proprietary so no standard SPDX identifier applies.
+  # Proprietary; no SPDX identifier.
   license :cannot_represent
 
   livecheck do
@@ -14,11 +14,10 @@ class WarpTerminal < Formula
     end
   end
 
-  # Linux-only. Do not use disable!
+  # Linux-only.
   depends_on :linux
 
-  # IMPORTANT: The autoupdate workflow targets lines by their trailing
-  # anchor comments. Do NOT remove or rename those comments.
+  # Anchor comments are used by the autoupdate workflow. Do not remove/rename.
   on_linux do
     on_intel do
       url "https://releases.warp.dev/stable/v#{version}/Warp-x86_64.AppImage" # x86_64_url
@@ -41,11 +40,7 @@ class WarpTerminal < Formula
       matches.fetch(0)
     end
 
-    # Homebrew stages downloads without +x. Formula#system uses Kernel.exec,
-    # which fails with a bare "Failed to execute" if the AppImage is not
-    # executable. Extract from the buildpath *before* bin.install — running
-    # the Cellar copy via `system bin/"warp"` is unreliable under Homebrew's
-    # Linux install runner. --appimage-extract does not require FUSE.
+    # Extract the AppImage contents.
     chmod "+x", appimage
     system buildpath/appimage, "--appimage-extract"
 
@@ -56,8 +51,7 @@ class WarpTerminal < Formula
 
     # ── Desktop integration ──────────────────────────────────────────
 
-    # For .desktop, rewrite Exec= to the absolute Homebrew bin path so the
-    # launcher works even when brew's bin is not in the user's $PATH.
+    # Rewrite .desktop Exec/TryExec to the installed binary path.
     desktop_src = extracted/"usr/share/applications/dev.warp.Warp.desktop"
     if desktop_src.exist?
       desktop_contents = desktop_src.read
@@ -69,7 +63,7 @@ class WarpTerminal < Formula
       (share/"applications/warp.desktop").write(desktop_contents)
     end
 
-    # Install icons from the hicolor tree inside the AppImage.
+    # Install icons.
     icon_src = extracted/"usr/share/icons"
     if icon_src.directory?
       (share/"icons").mkpath
@@ -77,7 +71,7 @@ class WarpTerminal < Formula
         next unless src.file?
 
         rel = src.relative_path_from(icon_src)
-        # Reject path traversal from a malicious archive layout.
+        # Skip path traversal entries.
         next if rel.to_s.empty? || rel.to_s.start_with?("/") || rel.each_filename.any?("..")
 
         dest = share/"icons"/rel
@@ -211,8 +205,7 @@ class WarpTerminal < Formula
     EOS
   end
 
-  # AppImages fail in headless CI (no display/FUSE) so we only verify
-  # the binary and .desktop file exist and are correctly formed.
+  # Verify install artifacts only (AppImage can't run in headless CI).
   test do
     assert_path_exists bin/"warp"
     assert_predicate bin/"warp", :executable?

@@ -21,8 +21,6 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
-          # Prefer AUTO_MERGE_TOKEN so opened PRs can trigger checks and auto-merge.
-          # Falls back to GITHUB_TOKEN when the secret is unset.
           token: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Fetch Latest Warp Version
@@ -50,7 +48,6 @@ jobs:
           if not raw:
               raise SystemExit("Could not parse stable.version")
 
-          # Formula stores version without leading "v" (macOS cask convention).
           normalized = raw[1:] if raw.startswith("v") else raw
           if not re.fullmatch(r"\d+(?:\.\d+)+\.stable_\d+", normalized):
               raise SystemExit(f"Unexpected version format: {raw!r}")
@@ -115,7 +112,6 @@ jobs:
           X86_SHA="${{ steps.warp_data.outputs.sha256_x86 }}"
           ARM_SHA="${{ steps.warp_data.outputs.sha256_arm }}"
 
-          # Only touch pinned version + sha256 anchor lines.
           sed -i -E "s/^(  version \")[^\"]+(\")/\1${VERSION}\2/" Formula/warp-terminal.rb
           sed -i "s|sha256 \".*\" # x86_64_sha256|sha256 \"${X86_SHA}\" # x86_64_sha256|" Formula/warp-terminal.rb
           sed -i "s|sha256 \".*\" # arm64_sha256|sha256 \"${ARM_SHA}\" # arm64_sha256|" Formula/warp-terminal.rb
@@ -148,7 +144,6 @@ jobs:
             exit 0
           fi
 
-          # Defense in depth: staged diff must be pin-only before push.
           ./scripts/validate-formula-security.sh origin/main
 
           git commit -m "chore(automation): bump warp-terminal to ${VERSION}"
@@ -195,8 +190,6 @@ jobs:
             PR_NUMBER=$(gh pr view "$PR_URL" --json number --jq .number)
           fi
 
-          # Wait for required checks via --auto. Do NOT force-merge immediately:
-          # that would bypass the security gates on a solo-maintainer repo.
           if gh pr merge "$PR_NUMBER" --squash --delete-branch --auto; then
             echo "Auto-merge enabled for PR #${PR_NUMBER}"
           else

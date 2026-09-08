@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Validates Formula/warp-terminal.rb security invariants and, when a git base
-# ref is provided, ensures bump diffs only touch allowed pin lines.
+# Validates formula security invariants and, optionally, bump diff scope.
 set -euo pipefail
 
 FORMULA="${FORMULA_PATH:-Formula/warp-terminal.rb}"
@@ -26,7 +25,7 @@ version = version_m.group(1)
 if not re.fullmatch(r"\d+(?:\.\d+)+\.stable_\d+", version):
     raise SystemExit(f"unexpected version shape: {version!r}")
 
-# Download hosts must stay on Warp's release domain via version interpolation.
+# Check download URLs.
 for arch, anchor in (("x86_64", "x86_64_url"), ("aarch64", "arm64_url")):
     pat = rf'url "https://releases\.warp\.dev/stable/v#\{{version\}}/Warp-{arch}\.AppImage" # {anchor}'
     if not re.search(pat, text):
@@ -40,12 +39,11 @@ for anchor in ("x86_64_sha256", "arm64_sha256"):
 if "sha256 :no_check" in text or "no_check" in text:
     raise SystemExit("sha256 :no_check is not allowed")
 
-# Reject unexpected download hosts anywhere in the formula.
+# Check all hosts.
 for m in re.finditer(r'https?://([^"/]+)', text):
     host = m.group(1)
     if host in {"www.warp.dev", "releases.warp.dev"}:
         continue
-    # livecheck/homepage only
     if host.endswith("warp.dev"):
         continue
     raise SystemExit(f"unexpected host in formula: {host}")
@@ -59,7 +57,7 @@ if [[ -n "$BASE_REF" ]]; then
     exit 1
   fi
 
-  # Only Formula/warp-terminal.rb may change in automated bump commits/PRs.
+  # Check changed files.
   mapfile -t changed < <(git diff --name-only "$BASE_REF"...HEAD)
   if [[ ${#changed[@]} -eq 0 ]]; then
     echo "ok: empty diff vs $BASE_REF"
@@ -73,7 +71,7 @@ if [[ -n "$BASE_REF" ]]; then
     fi
   done
 
-  # Unified diff of formula: only version + sha256 anchor lines may change.
+  # Check formula diff lines.
   python3 - "$BASE_REF" "$FORMULA" <<'PY'
 import re
 import subprocess
