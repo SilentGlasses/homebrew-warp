@@ -161,12 +161,15 @@ class WarpTerminal < Formula
 
   def caveats
     <<~EOS
-      Warp Terminal is distributed as an AppImage and requires FUSE to run.
+      Warp is an AppImage. Homebrew installs the app; your distro provides
+      system libraries. If `warp` crashes on launch, read the terminal error—
+      missing `lib*.so` files must be installed with your package manager.
 
-      Install the required FUSE library for your distro:
+      Required for the AppImage runtime (libfuse2, not libfuse3 alone):
 
-        Ubuntu / Debian:
+        Ubuntu / Debian / Mint:
           sudo apt install libfuse2
+          # package may be named libfuse2t64 on newer releases
 
         Fedora:
           sudo dnf install fuse-libs
@@ -177,22 +180,34 @@ class WarpTerminal < Formula
         openSUSE:
           sudo zypper install libfuse2
 
-      Note: AppImages require libfuse2, not libfuse3. If Warp fails to launch
-      after installing FUSE, ensure libfuse2 (not just fuse3) is installed.
+      Common on minimal desktops (fixes libxkbcommon-x11 launch panics):
+
+        Ubuntu / Debian / Mint:
+          sudo apt install libxkbcommon0 libxkbcommon-x11-0
+
+        Fedora:
+          sudo dnf install libxkbcommon libxkbcommon-x11
+
+        Arch Linux:
+          sudo pacman -S libxkbcommon libxkbcommon-x11
+
+      Map any other missing library from the error text, e.g.:
+        apt-file search libxkbcommon-x11.so.0
+        dnf provides '*/libxkbcommon-x11.so.0'
 
       This formula is Linux-only. On macOS install the official cask instead:
         brew install --cask warp
 
-      Version and SHA-256 pins are updated automatically by GitHub Actions when
-      Warp publishes a new stable release. After the tap updates, run:
+      After Warp publishes a new stable release and this tap updates:
         brew update && brew upgrade warp-terminal
 
-      A launcher shortcut is created automatically at:
+      Launcher shortcut (may need a session refresh):
         ~/.local/share/applications/warp.desktop
 
-      If the icon does not appear immediately, log out and back in, or run:
+      If the menu entry is missing:
+        mkdir -p ~/.local/share/applications
+        ln -sf #{opt_share}/applications/warp.desktop ~/.local/share/applications/warp.desktop
         update-desktop-database ~/.local/share/applications
-        gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
     EOS
   end
 

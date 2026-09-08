@@ -8,7 +8,11 @@ The formula name is **`warp-terminal`** not `warp`, that name is already the off
 
 ## Prerequisites
 
-Warp's AppImage needs **libfuse2** (not libfuse3):
+This formula installs Warp's official **AppImage**. Homebrew cannot ship every Linux GUI/system library for you, those come from your distro. Install the common ones below before first launch (or as soon as `warp` prints a missing-library error).
+
+### FUSE (required to run the AppImage)
+
+**libfuse2** is required (not libfuse3 alone):
 
 | Distro          | Command                        |
 |-----------------|--------------------------------|
@@ -17,8 +21,28 @@ Warp's AppImage needs **libfuse2** (not libfuse3):
 | Arch Linux      | `sudo pacman -S fuse2`         |
 | openSUSE        | `sudo zypper install libfuse2` |
 
+On newer Ubuntu/Debian, the package may be named `libfuse2t64`.
+
+### Desktop / keyboard libraries (common on minimal installs)
+
+Minimal Ubuntu/Debian images often lack libraries Warp loads at startup. A practical baseline:
+
+```bash
+# Ubuntu / Debian / Mint
+sudo apt update
+sudo apt install libfuse2 libxkbcommon0 libxkbcommon-x11-0
+```
+
+| Distro          | Suggested packages                                      |
+|-----------------|---------------------------------------------------------|
+| Ubuntu / Debian | `libfuse2` (or `libfuse2t64`), `libxkbcommon0`, `libxkbcommon-x11-0` |
+| Fedora          | `fuse-libs`, `libxkbcommon`, `libxkbcommon-x11`         |
+| Arch Linux      | `fuse2`, `libxkbcommon`, `libxkbcommon-x11`             |
+
+You do **not** need to pre-install every possible dependency on a full desktop. If Warp crashes on launch, read the error (see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)), it usually names the missing `.so` file.
+
 > [!NOTE]
-> If Warp fails to launch after installing FUSE, confirm `libfuse2` is present. `libfuse3` alone is not enough.
+> Third-party Homebrew taps may also require trusting the tap once on recent Homebrew: `brew trust silentglasses/warp`.
 
 ## Install
 
@@ -107,30 +131,6 @@ This tap uses **pinned `version` + SHA-256** values (same integrity model as the
 - **x86_64 and ARM64 (aarch64)** Linux
 - **Desktop integration**: `.desktop` launcher and icons installed on install, removed on uninstall
 
-## Troubleshooting
-
-**Icon missing from the app menu**
-
-```bash
-update-desktop-database ~/.local/share/applications
-gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
-```
-
-**FUSE / AppImage launch error**
-
-Install `libfuse2` for your distro (see [Prerequisites](#prerequisites)).
-
-**Confirm the package is present**
-
-```bash
-brew list warp-terminal
-brew info warp-terminal
-```
-
-**`brew install warp` did the wrong thing**
-
-That resolves the official macOS **cask**. For this tap use `warp-terminal`.
-
 ## Security model
 
 | Control                | Behavior                                                                                                 |
@@ -140,9 +140,9 @@ That resolves the official macOS **cask**. For this tap use `warp-terminal`.
 | Version pins           | Updated by GitHub Actions from Warp's stable channel; not chosen at install time by the client           |
 | Install-time execution | Runs the AppImage with `--appimage-extract` for `.desktop`/icons (vendor installer trust class)          |
 | Desktop/icon install   | Fixed `.desktop` path; icon copy/link rejects `..` path segments                                         |
-| macOS                  | Not supported (`depends_on :linux`); use `brew install --cask warp`                                      |
+| macOS                  | **Not supported** (`depends_on :linux`); use `brew install --cask warp`                                  |
 
-**What checksums buy you**
+**Benefits of checksums**
 
 - Detect corrupted or substituted AppImage bytes that do not match the pin recorded in git
 - Stable, auditable formula history for each release
@@ -152,8 +152,6 @@ That resolves the official macOS **cask**. For this tap use `warp-terminal`.
 - A compromised Warp release host at the moment CI computes hashes can still poison a bump (same class of risk as the official macOS cask bot)
 - A fully compromised GitHub owner account can still ship a bad pin (2FA + branch protection + pin allowlist raise the bar substantially)
 - This is a third-party tap; trust both this repository and Warp
-
-Stronger than `sha256 :no_check` live installs for artifact consistency; not a substitute for vendor code-signing.
 
 ## License
 
