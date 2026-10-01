@@ -17,11 +17,45 @@ jobs:
   update-formula:
     runs-on: ubuntu-latest
     steps:
+      - name: Require AUTO_MERGE_TOKEN
+        env:
+          AUTO_MERGE_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${AUTO_MERGE_TOKEN}" ]]; then
+            echo "::error::AUTO_MERGE_TOKEN secret is missing. Set a classic PAT (repo scope) or fine-grained token with contents+pull_requests on this repo."
+            exit 1
+          fi
+          # Fail fast on revoked/invalid tokens instead of cryptic checkout prompt errors.
+          code=$(curl -sS -o /tmp/token-user.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${AUTO_MERGE_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/user)
+          if [[ "$code" != "200" ]]; then
+            echo "::error::AUTO_MERGE_TOKEN is invalid (HTTP ${code}). Rotate the secret."
+            cat /tmp/token-user.json || true
+            exit 1
+          fi
+          code=$(curl -sS -o /tmp/token-repo.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${AUTO_MERGE_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}")
+          if [[ "$code" != "200" ]]; then
+            echo "::error::AUTO_MERGE_TOKEN cannot read ${GITHUB_REPOSITORY} (HTTP ${code})."
+            cat /tmp/token-repo.json || true
+            exit 1
+          fi
+          login=$(python3 -c 'import json; print(json.load(open("/tmp/token-user.json"))["login"])')
+          echo "ok: AUTO_MERGE_TOKEN authenticates as ${login}"
+
       - name: Checkout Repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
-          token: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          # PAT required so opened bump PRs trigger required checks and can auto-merge.
+          token: ${{ secrets.AUTO_MERGE_TOKEN }}
 
       - name: Fetch Latest Warp Version
         id: warp_version
@@ -40,8 +74,9 @@ jobs:
               },
           )
           with urllib.request.urlopen(req, timeout=30) as resp:
-              if not resp.geturl().startswith("https://"):
-                  raise SystemExit("refusing non-HTTPS metadata response")
+              final = resp.geturl()
+              if not final.startswith("https://releases.warp.dev/"):
+                  raise SystemExit(f"refusing metadata host redirect: {final}")
               data = json.load(resp)
 
           raw = data.get("stable", {}).get("version")
@@ -88,11 +123,11 @@ jobs:
           URL_ARM="${BASE_URL}/Warp-aarch64.AppImage"
 
           echo "Downloading x86_64 AppImage..."
-          SHA256_X86=$(curl -fsSL "$URL_X86" | sha256sum | awk '{print $1}')
+          SHA256_X86=$(curl -fsSL -A "Homebrew-silentglasses-warp" "$URL_X86" | sha256sum | awk '{print $1}')
           [ -n "$SHA256_X86" ] || { echo "::error::SHA256 failed for x86_64"; exit 1; }
 
           echo "Downloading aarch64 AppImage..."
-          SHA256_ARM=$(curl -fsSL "$URL_ARM" | sha256sum | awk '{print $1}')
+          SHA256_ARM=$(curl -fsSL -A "Homebrew-silentglasses-warp" "$URL_ARM" | sha256sum | awk '{print $1}')
           [ -n "$SHA256_ARM" ] || { echo "::error::SHA256 failed for aarch64"; exit 1; }
 
           echo "x86_64  sha256: $SHA256_X86"
@@ -124,6 +159,7 @@ jobs:
           grep -q "sha256 \"${ARM_SHA}\" # arm64_sha256" Formula/warp-terminal.rb
           ruby -c Formula/warp-terminal.rb
           ./scripts/validate-formula-security.sh
+          ./scripts/verify-appimage-pins.sh
 
       - name: Commit and Push to Feature Branch
         if: steps.check.outputs.needs_update == 'true'
@@ -154,7 +190,7 @@ jobs:
       - name: Open Pull Request and Enable Auto-Merge
         if: steps.check.outputs.needs_update == 'true' && steps.git_push.outputs.branch != ''
         env:
-          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.AUTO_MERGE_TOKEN }}
         run: |
           VERSION="${{ steps.warp_version.outputs.version }}"
           BRANCH="${{ steps.git_push.outputs.branch }}"
@@ -180,7 +216,7 @@ jobs:
           - Updated aarch64 SHA256 → \`${ARM_SHA}\`
 
           Downloads verified from \`releases.warp.dev\` over HTTPS before the formula was patched.
-          CI enforces a pin-only diff allowlist (version + sha256 anchors).
+          CI enforces a pin-only diff allowlist (version + sha256 anchors) and re-downloads AppImages to confirm pins.
 
           > Opened automatically by the Autoupdate Warp workflow.
           > Auto-merge waits for required status checks when repository settings allow it.
@@ -193,16 +229,51 @@ jobs:
           if gh pr merge "$PR_NUMBER" --squash --delete-branch --auto; then
             echo "Auto-merge enabled for PR #${PR_NUMBER}"
           else
-            echo "::warning::Could not enable auto-merge for PR #${PR_NUMBER}. Check: Allow auto-merge, required checks, and AUTO_MERGE_TOKEN."
+            echo "::error::Could not enable auto-merge for PR #${PR_NUMBER}. Check: Allow auto-merge, required checks, and AUTO_MERGE_TOKEN scopes (repo)."
             exit 1
           fi
 
-      - name: Update Version Badge
+      # No third-party badge action: update a public gist consumed by shields.io.
+      - name: Update Version Badge (gist + shields.io)
         if: always() && steps.warp_version.outputs.version != ''
-        uses: RubbaBoy/BYOB@24f464284c1fd32028524b59607d417a2e36fee7 # v1.3.0
-        with:
-          name: warp-linux
-          label: "Warp Version"
-          status: ${{ steps.warp_version.outputs.version }}
-          color: "446ca3"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
+          VERSION: ${{ steps.warp_version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GIST_TOKEN}" || -z "${GIST_ID}" ]]; then
+            echo "::warning::GIST_TOKEN/GIST_ID not set; skipping badge update"
+            exit 0
+          fi
+          BODY=$(python3 - <<'PY'
+          import json, os
+          print(json.dumps({
+            "description": "SilentGlasses/homebrew-warp version badge (shields.io endpoint)",
+            "files": {
+              "warp-version.json": {
+                "content": json.dumps({
+                  "schemaVersion": 1,
+                  "label": "Warp Version",
+                  "message": os.environ["VERSION"],
+                  "color": "446ca3",
+                }, indent=2) + "\n"
+              }
+            }
+          }))
+          PY
+          )
+          code=$(curl -sS -o /tmp/gist-patch.json -w '%{http_code}' \
+            -X PATCH \
+            -H "Authorization: Bearer ${GIST_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Content-Type: application/json" \
+            --data "${BODY}" \
+            "https://api.github.com/gists/${GIST_ID}")
+          if [[ "$code" != "200" ]]; then
+            echo "::warning::badge gist update failed (HTTP ${code})"
+            cat /tmp/gist-patch.json || true
+            exit 0
+          fi
+          echo "ok: updated gist ${GIST_ID} badge message=${VERSION}"

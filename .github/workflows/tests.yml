@@ -39,6 +39,10 @@ jobs:
       - name: Validate formula security invariants
         run: ./scripts/validate-formula-security.sh
 
+      # End-to-end pin check: download AppImages from releases.warp.dev and match sha256 pins.
+      - name: Verify AppImage pins against releases.warp.dev
+        run: ./scripts/verify-appimage-pins.sh
+
   validate-bump-diff:
     name: Validate bump diff
     if: github.event_name == 'pull_request'

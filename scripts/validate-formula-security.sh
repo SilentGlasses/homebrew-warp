@@ -39,14 +39,23 @@ for anchor in ("x86_64_sha256", "arm64_sha256"):
 if "sha256 :no_check" in text or "no_check" in text:
     raise SystemExit("sha256 :no_check is not allowed")
 
-# Check all hosts.
+# Host allowlist: homepage may use www.warp.dev; downloads/livecheck only releases.warp.dev.
+# No wildcard *.warp.dev.
+allowed_hosts = {"www.warp.dev", "releases.warp.dev"}
 for m in re.finditer(r'https?://([^"/]+)', text):
     host = m.group(1)
-    if host in {"www.warp.dev", "releases.warp.dev"}:
+    if host not in allowed_hosts:
+        raise SystemExit(f"unexpected host in formula: {host}")
+
+# Non-homepage URLs must be the releases endpoint only.
+for m in re.finditer(r'https?://([^"/]+)([^"\s]*)', text):
+    host, path = m.group(1), m.group(2)
+    if host == "www.warp.dev":
+        if path not in ("", "/"):
+            raise SystemExit(f"www.warp.dev only allowed as homepage root, got: {host}{path}")
         continue
-    if host.endswith("warp.dev"):
-        continue
-    raise SystemExit(f"unexpected host in formula: {host}")
+    if host != "releases.warp.dev":
+        raise SystemExit(f"non-homepage URL must use releases.warp.dev, got host: {host}")
 
 print(f"ok: formula security invariants hold (version={version})")
 PY
