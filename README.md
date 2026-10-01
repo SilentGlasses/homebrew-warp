@@ -1,4 +1,4 @@
-![Warp Version](https://byob.yarr.is/SilentGlasses/homebrew-warp/warp-linux)
+![Warp Version](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/SilentGlasses/10106cd6dd3360ff07130078588a9a9b/raw/warp-version.json)
 
 # Homebrew Warp
 
@@ -135,11 +135,13 @@ This tap uses **pinned `version` + SHA-256** values (same integrity model as the
 
 | Control                | Behavior                                                                                                 |
 |------------------------|----------------------------------------------------------------------------------------------------------|
-| Transport              | HTTPS to `releases.warp.dev` for metadata and AppImages                                                  |
+| Transport              | HTTPS to `releases.warp.dev` for metadata and AppImages (homepage may be `www.warp.dev` only)            |
 | Artifact integrity     | Pinned per-arch `sha256` in the formula; Homebrew verifies before install                                |
+| CI pin re-check        | Test workflow re-downloads both AppImages from `releases.warp.dev` and asserts sha256 matches the formula |
 | Version pins           | Updated by GitHub Actions from Warp's stable channel; not chosen at install time by the client           |
 | Install-time execution | Runs the AppImage with `--appimage-extract` for `.desktop`/icons (vendor installer trust class)          |
 | Desktop/icon install   | Fixed `.desktop` path; icon copy/link rejects `..` path segments                                         |
+| Badge                  | shields.io endpoint backed by a maintainer-owned public gist (no third-party badge Action)               |
 | macOS                  | **Not supported** (`depends_on :linux`); use `brew install --cask warp`                                  |
 
 **Benefits of checksums**
